@@ -1,0 +1,1 @@
+ALTER TABLE `children` ADD `parent_user_id` integer;

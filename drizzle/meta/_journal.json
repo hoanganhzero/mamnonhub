@@ -1,0 +1,55 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1787326225268,
+      "tag": "0000_sharp_maria_hill",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1787330086071,
+      "tag": "0001_married_famine",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1787333168429,
+      "tag": "0002_next_squirrel_girl",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1787364850707,
+      "tag": "0003_fat_tag",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1787367025220,
+      "tag": "0004_rename-school-code",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1787370585894,
+      "tag": "0005_charming_sally_floyd",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1787376403516,
+      "tag": "0006_parallel_ultimo",
+      "breakpoints": true
+    }
+  ]
+}

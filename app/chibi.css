@@ -1,0 +1,298 @@
+/* Bộ biểu tượng chibi: pastel, bo tròn và chuyển động nhẹ */
+.shell > aside nav button i,
+.mobile-nav i,
+.pageicon,
+.stats article > i,
+.system-stats i,
+.system-actions i,
+.module-grid i,
+.quick button,
+.notice > i,
+.activity i,
+.channel > i {
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji",
+    sans-serif !important;
+  filter: drop-shadow(0 3px 3px #4c71651a);
+}
+.shell > aside nav button i {
+  width: 31px;
+  height: 31px;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  background: linear-gradient(145deg, #fff7d9, #ffe9e5);
+  border: 1px solid #fff;
+  box-shadow: 0 4px 10px #536e6614;
+  font-size: 17px;
+  transition: transform 0.18s ease;
+}
+.shell > aside nav button:nth-child(3n + 2) i {
+  background: linear-gradient(145deg, #e8f8f1, #dff1ff);
+}
+.shell > aside nav button:nth-child(3n) i {
+  background: linear-gradient(145deg, #f3ebff, #ffe8f1);
+}
+.shell > aside nav button:hover i,
+.shell > aside nav button.on i {
+  transform: translateY(-2px) rotate(-3deg);
+  box-shadow: 0 6px 13px #53766b24;
+}
+.school {
+  border: 1px solid #fff;
+  box-shadow: 0 6px 16px #42675d10;
+}
+.bell {
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
+  font-size: 18px;
+  background: linear-gradient(145deg, #fff6d7, #ffe8e6);
+  border: 1px solid #fff;
+  box-shadow: 0 4px 12px #405d5514;
+}
+.pageicon,
+.stats article > i,
+.system-stats i,
+.system-actions i {
+  border: 1px solid #fff;
+  box-shadow: 0 5px 12px #45675e18;
+}
+.stats article > i,
+.system-stats i {
+  font-size: 21px;
+}
+.quick button {
+  background: linear-gradient(145deg, #fffdf7, #f4faf7);
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
+  cursor: pointer;
+}
+.quick button:hover,
+.module-grid button:hover,
+.system-actions button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px #45675e16;
+}
+.mobile-nav i {
+  width: 29px;
+  height: 29px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: #f4f8f5;
+  font-size: 16px;
+}
+.mobile-nav button.on i {
+  background: linear-gradient(145deg, #e0f5ed, #fff0df);
+  box-shadow: 0 3px 9px #476b611a;
+}
+@media (prefers-reduced-motion: reduce) {
+  .shell > aside nav button i,
+  .quick button,
+  .module-grid button,
+  .system-actions button {
+    transition: none !important;
+    transform: none !important;
+  }
+}
+.excel-btn {
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 9px;
+  font-weight: 800;
+  color: #4d9584;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.excel-btn input {
+  display: none;
+}
+
+/* Bộ icon minh họa chibi riêng của Mầm Non Yêu Thương */
+.chibi {
+  display: inline-block;
+  width: 100%;
+  height: 100%;
+  min-width: 22px;
+  min-height: 22px;
+  background-image: url("/chibi-icons.png");
+  background-repeat: no-repeat;
+  background-size: 400% 400%;
+  vertical-align: middle;
+  filter: none !important;
+}
+.chibi-dashboard {
+  background-position: 0% 0%;
+}
+.chibi-school {
+  background-position: 33.333% 0%;
+}
+.chibi-classroom {
+  background-position: 66.666% 0%;
+}
+.chibi-teacher {
+  background-position: 100% 0%;
+}
+.chibi-child {
+  background-position: 0% 33.333%;
+}
+.chibi-attendance {
+  background-position: 33.333% 33.333%;
+}
+.chibi-family {
+  background-position: 66.666% 33.333%;
+}
+.chibi-megaphone {
+  background-position: 100% 33.333%;
+}
+.chibi-meal {
+  background-position: 0% 66.666%;
+}
+.chibi-sleep {
+  background-position: 33.333% 66.666%;
+}
+.chibi-health {
+  background-position: 66.666% 66.666%;
+}
+.chibi-diary {
+  background-position: 100% 66.666%;
+}
+.chibi-report {
+  background-position: 0% 100%;
+}
+.chibi-import {
+  background-position: 33.333% 100%;
+}
+.chibi-account {
+  background-position: 66.666% 100%;
+}
+.chibi-settings {
+  background-position: 100% 100%;
+}
+.shell > aside nav button i {
+  padding: 3px;
+}
+.shell > aside nav button i .chibi {
+  min-width: 25px;
+  min-height: 25px;
+}
+.mobile-nav i {
+  padding: 2px;
+}
+.mobile-nav i .chibi {
+  min-width: 23px;
+  min-height: 23px;
+}
+.pageicon {
+  padding: 4px;
+}
+.pageicon .chibi {
+  min-width: 42px;
+  min-height: 42px;
+}
+.stats article > i,
+.system-stats i,
+.system-actions i,
+.module-grid i {
+  padding: 3px;
+}
+.stats article > i .chibi,
+.system-stats i .chibi,
+.system-actions i .chibi {
+  min-width: 32px;
+  min-height: 32px;
+}
+.module-grid i .chibi {
+  width: 34px;
+  height: 34px;
+}
+.modal .big .chibi {
+  width: 48px;
+  height: 48px;
+}
+.school > .chibi {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+}
+.help > .chibi {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+}
+.bell {
+  padding: 6px;
+}
+.bell > .chibi {
+  width: 26px;
+  height: 26px;
+}
+.user > i .chibi {
+  width: 34px;
+  height: 34px;
+}
+.kid > i .chibi,
+.att-card > i .chibi,
+.person > i .chibi,
+.profile > i .chibi,
+.notice > i .chibi {
+  width: 100%;
+  height: 100%;
+}
+.school-banner {
+  width: 100%;
+  max-height: 190px;
+  object-fit: cover;
+  border-radius: 20px;
+  margin-bottom: 17px;
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+}
+.setup-form {
+  margin-bottom: 17px;
+}
+.setup-form .save {
+  max-width: 220px;
+}
+.branding-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+.brand-preview {
+  display: block;
+  width: 100%;
+  height: 150px;
+  object-fit: cover;
+  border-radius: 14px;
+  margin: 10px 0;
+}
+.logo-preview {
+  object-fit: contain;
+  background: #f7faf8;
+}
+.section-head {
+  margin-top: 20px;
+}
+.danger {
+  color: #c65f55 !important;
+  border-color: #f0cdc8 !important;
+}
+.modal h3 {
+  font-size: 11px;
+  margin: 15px 0 8px;
+  color: #4b766d;
+}
+@media (max-width: 700px) {
+  .branding-grid {
+    grid-template-columns: 1fr;
+  }
+  .school-banner {
+    max-height: 120px;
+  }
+  .setup-form .save {
+    max-width: none;
+  }
+}
