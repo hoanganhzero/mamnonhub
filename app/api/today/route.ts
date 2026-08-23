@@ -1,6 +1,6 @@
 import { and, eq, gte, inArray, lte } from "drizzle-orm";
 import { getDb } from "../../../db";
-import { attendance, dailyLogs, leaveRequests } from "../../../db/schema";
+import { attendance, classes, dailyLogs, leaveRequests } from "../../../db/schema";
 import { dateParam, vnToday } from "../../../lib/day";
 import { scopedChildren } from "../../../lib/scope";
 import { currentUser } from "../../../lib/session";
@@ -45,6 +45,26 @@ export async function GET(request: Request) {
     const logBy = new Map(logs.map((x) => [x.childId, x]));
     const leaveBy = new Map(leaves.map((x) => [x.childId, x]));
 
+    // Trang trí lớp: linh vật, khẩu hiệu, ảnh bìa cô đã chọn.
+    const classIds = [
+      ...new Set(
+        scope.rows.map((x) => x.classId).filter((x): x is number => !!x),
+      ),
+    ];
+    const classRows = classIds.length
+      ? await getDb()
+          .select({
+            id: classes.id,
+            name: classes.name,
+            mascot: classes.mascot,
+            motto: classes.motto,
+            coverKey: classes.coverKey,
+          })
+          .from(classes)
+          .where(inArray(classes.id, classIds))
+      : [];
+    const classBy = new Map(classRows.map((x) => [x.id, x]));
+
     return Response.json({
       date,
       today: vnToday(),
@@ -58,6 +78,7 @@ export async function GET(request: Request) {
         attendance: markBy.get(child.id) ?? null,
         log: logBy.get(child.id) ?? null,
         leave: leaveBy.get(child.id) ?? null,
+        classInfo: child.classId ? (classBy.get(child.classId) ?? null) : null,
       })),
     });
   } catch (error) {

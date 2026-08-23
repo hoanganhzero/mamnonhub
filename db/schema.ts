@@ -18,6 +18,7 @@ export const schools = sqliteTable(
     address: text("address").notNull().default(""),
     logoKey: text("logo_key"),
     bannerKey: text("banner_key"),
+    theme: text("theme").notNull().default("mint"),
     status: text("status").notNull().default("active"),
     createdAt: text("created_at")
       .notNull()
@@ -71,6 +72,10 @@ export const classes = sqliteTable("classes", {
   ageGroup: text("age_group").notNull().default(""),
   academicYear: text("academic_year").notNull(),
   teacherId: integer("teacher_id"),
+  mascot: text("mascot").notNull().default("🌻"),
+  motto: text("motto").notNull().default(""),
+  intro: text("intro").notNull().default(""),
+  coverKey: text("cover_key"),
   status: text("status").notNull().default("active"),
   createdAt: text("created_at")
     .notNull()

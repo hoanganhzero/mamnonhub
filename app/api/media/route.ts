@@ -1,7 +1,7 @@
 import { env } from "cloudflare:workers";
 import { eq, inArray } from "drizzle-orm";
 import { getDb } from "../../../db";
-import { incidents, postMedia } from "../../../db/schema";
+import { classes, incidents, postMedia } from "../../../db/schema";
 import { visiblePosts } from "../../../lib/posts";
 import { scopedChildren } from "../../../lib/scope";
 import { currentUser } from "../../../lib/session";
@@ -37,6 +37,16 @@ export async function GET(request: Request) {
         allowed =
           user.role === "superadmin" ||
           scope.rows.some((x) => x.id === incident.childId);
+      } else {
+        // Ảnh bìa lớp: mọi thành viên cùng trường xem được.
+        const [cover] = await getDb()
+          .select()
+          .from(classes)
+          .where(eq(classes.coverKey, key))
+          .limit(1);
+        if (cover)
+          allowed =
+            user.role === "superadmin" || cover.schoolId === user.schoolId;
       }
     }
     if (!allowed) return new Response("Forbidden", { status: 403 });

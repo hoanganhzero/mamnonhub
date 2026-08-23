@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { schools } from "../../../db/schema";
 import { currentUser } from "../../../lib/session";
+import { THEMES } from "../../../lib/themes";
 
 export async function GET(request: Request) {
   try {
@@ -77,6 +78,7 @@ export async function PATCH(request: Request) {
       address?: string;
       academicYear?: string;
       status?: string;
+      theme?: string;
     };
     const targetId = actor.role === "admin" ? actor.schoolId : Number(p.id);
     if (!targetId)
@@ -86,7 +88,13 @@ export async function PATCH(request: Request) {
       address?: string;
       academicYear?: string;
       status?: string;
+      theme?: string;
     } = {};
+    if (p.theme) {
+      if (!THEMES[p.theme])
+        return Response.json({ error: "Bộ màu không hợp lệ" }, { status: 400 });
+      values.theme = p.theme;
+    }
     if (p.name?.trim()) values.name = p.name.trim();
     if (typeof p.address === "string") values.address = p.address.trim();
     if (p.academicYear) values.academicYear = p.academicYear;

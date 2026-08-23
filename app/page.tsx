@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import "./chibi.css";
 import * as XLSX from "xlsx";
 import { vnNow, vnToday } from "../lib/day";
+import { THEMES, themeVars } from "../lib/themes";
 import { weekStartOf } from "../lib/week";
 
 const iconMap: Record<string, string> = {
@@ -88,7 +89,8 @@ export default function Home() {
         .then((r) => r.json())
         .then((d) => setSchoolBrand(d.schools?.[0] || null));
     else setSchoolBrand(null);
-  }, [authUser?.schoolId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authUser?.schoolId, active]);
   const ping = (s: string) => {
     setToast(s);
     setTimeout(() => setToast(""), 2200);
@@ -166,7 +168,7 @@ export default function Home() {
               ["💰", "Học phí"],
             ];
   return (
-    <main className="shell">
+    <main className="shell" style={themeVars(schoolBrand?.theme)}>
       <aside>
         <div className="brand">
           <img
@@ -1168,6 +1170,7 @@ function SchoolSetup({ ping }: { ping: (s: string) => void }) {
     [teachers, setTeachers] = useState<{ id: number; fullName: string }[]>([]),
     [modal, setModal] = useState<"campus" | "class" | null>(null),
     [editing, setEditing] = useState<Campus | ClassRow | null>(null),
+    [uploading, setUploading] = useState(""),
     [error, setError] = useState("");
   const load = async () => {
     const [a, b] = await Promise.all([
@@ -1239,18 +1242,35 @@ function SchoolSetup({ ping }: { ping: (s: string) => void }) {
   }
   async function brand(e: React.ChangeEvent<HTMLInputElement>, type: string) {
     const file = e.target.files?.[0];
+    e.target.value = "";
     if (!file) return;
+    setUploading(type);
     const fd = new FormData();
     fd.set("file", file);
     fd.set("type", type);
     const r = await fetch("/api/branding", { method: "POST", body: fd }),
       d = await r.json();
+    setUploading("");
     if (!r.ok) {
       ping(d.error);
       return;
     }
     setSchool(d.school);
-    ping("Đã cập nhật nhận diện trường");
+    ping(type === "logo" ? "Đã thay logo mới" : "Đã thay banner mới");
+  }
+  async function pickTheme(theme: string) {
+    const r = await fetch("/api/schools", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ theme }),
+      }),
+      d = await r.json();
+    if (!r.ok) {
+      ping(d.error || "Chưa đổi được bộ màu");
+      return;
+    }
+    setSchool(d.school);
+    ping(`Đã đổi sang bộ màu ${THEMES[theme]?.label || theme}`);
   }
   if (!school) return <div className="empty">Đang tải cấu hình…</div>;
   return (
@@ -1282,43 +1302,89 @@ function SchoolSetup({ ping }: { ping: (s: string) => void }) {
         <button className="save">Lưu thông tin trường</button>
       </form>
       <section className="branding-grid">
-        <div className="panel">
-          <Title title="Logo riêng" sub="PNG, JPG hoặc WEBP" />
-          {school.logoKey && (
-            <img
-              className="brand-preview logo-preview"
-              src={`/api/branding?key=${encodeURIComponent(school.logoKey)}`}
-              alt="Logo trường"
-            />
-          )}
+        <div className="panel brand-card">
+          <Title
+            title="Logo trường"
+            sub="Hiện ở góc trái mọi màn hình · PNG, JPG, WEBP tối đa 5 MB"
+          />
+          <div className="brand-frame logo-frame">
+            {school.logoKey ? (
+              <img
+                src={`/api/branding?key=${encodeURIComponent(school.logoKey)}`}
+                alt="Logo trường"
+              />
+            ) : (
+              <span>Chưa có logo — đang dùng logo mặc định</span>
+            )}
+          </div>
           <label className="excel-btn">
-            Chọn logo
+            {uploading === "logo"
+              ? "Đang tải lên…"
+              : school.logoKey
+                ? "Thay logo khác"
+                : "Chọn logo"}
             <input
               type="file"
               accept="image/png,image/jpeg,image/webp"
               onChange={(e) => brand(e, "logo")}
+              disabled={uploading !== ""}
             />
           </label>
         </div>
-        <div className="panel">
-          <Title title="Banner riêng" sub="Khuyến nghị ảnh ngang" />
-          {school.bannerKey && (
-            <img
-              className="brand-preview"
-              src={`/api/branding?key=${encodeURIComponent(school.bannerKey)}`}
-              alt="Banner trường"
-            />
-          )}
+        <div className="panel brand-card">
+          <Title
+            title="Banner trang chủ"
+            sub="Ảnh ngang, hiện đầu trang của giáo viên và phụ huynh"
+          />
+          <div className="brand-frame banner-frame">
+            {school.bannerKey ? (
+              <img
+                src={`/api/branding?key=${encodeURIComponent(school.bannerKey)}`}
+                alt="Banner trường"
+              />
+            ) : (
+              <span>Chưa có banner</span>
+            )}
+          </div>
           <label className="excel-btn">
-            Chọn banner
+            {uploading === "banner"
+              ? "Đang tải lên…"
+              : school.bannerKey
+                ? "Thay banner khác"
+                : "Chọn banner"}
             <input
               type="file"
               accept="image/png,image/jpeg,image/webp"
               onChange={(e) => brand(e, "banner")}
+              disabled={uploading !== ""}
             />
           </label>
         </div>
       </section>
+      <div className="panel theme-picker">
+        <Title
+          title="Bộ màu của trường"
+          sub="Áp dụng cho mọi tài khoản trong trường — nút bấm, thanh điều hướng, huy hiệu"
+        />
+        <div className="theme-row">
+          {Object.entries(THEMES).map(([key, t]) => (
+            <button
+              key={key}
+              className={`theme-swatch${(school.theme || "mint") === key ? " on" : ""}`}
+              onClick={() => pickTheme(key)}
+              title={t.label}
+            >
+              <span className="swatch-colors">
+                <i style={{ background: t.accent }} />
+                <i style={{ background: t.secondary }} />
+                <i style={{ background: t.navBg }} />
+              </span>
+              <b>{t.label}</b>
+              {(school.theme || "mint") === key && <em>Đang dùng</em>}
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="section-head">
         <div>
           <h2>Điểm trường · Phân hiệu</h2>
@@ -4687,11 +4753,169 @@ function Notices({ ping }: { ping: (s: string) => void }) {
   );
 }
 
+type MyClass = {
+  id: number;
+  name: string;
+  ageGroup: string;
+  mascot: string;
+  motto: string;
+  intro: string;
+  coverKey: string | null;
+  childCount: number;
+};
+
+/** Modal trang trí lớp: linh vật, khẩu hiệu, lời giới thiệu và ảnh bìa. */
+function ClassDecor({
+  myClass,
+  mascots,
+  ping,
+  close,
+  done,
+}: {
+  myClass: MyClass;
+  mascots: string[];
+  ping: (s: string) => void;
+  close: () => void;
+  done: () => void;
+}) {
+  const [mascot, setMascot] = useState(myClass.mascot),
+    [coverKey, setCoverKey] = useState(myClass.coverKey || ""),
+    [uploading, setUploading] = useState(false),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState("");
+
+  async function uploadCover(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setUploading(true);
+    setError("");
+    const form = new FormData();
+    form.append("file", file);
+    const r = await fetch("/api/media", { method: "POST", body: form }),
+      d = await r.json();
+    setUploading(false);
+    if (!r.ok) {
+      setError(d.error || "Không tải được ảnh");
+      return;
+    }
+    setCoverKey(d.media[0].key);
+  }
+
+  async function submit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError("");
+    setBusy(true);
+    const f = new FormData(e.currentTarget);
+    const r = await fetch("/api/my-class", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          classId: myClass.id,
+          mascot,
+          motto: String(f.get("motto") || ""),
+          intro: String(f.get("intro") || ""),
+          coverKey,
+        }),
+      }),
+      d = await r.json();
+    setBusy(false);
+    if (!r.ok) {
+      setError(d.error || "Chưa lưu được");
+      return;
+    }
+    ping("Đã trang trí lại trang lớp");
+    done();
+  }
+
+  return (
+    <div className="back">
+      <form className="modal wide" onSubmit={submit}>
+        <button type="button" className="x" onClick={close}>
+          ×
+        </button>
+        <i className="big">{mascot}</i>
+        <h2>Trang trí lớp {myClass.name}</h2>
+        <p>Phụ huynh của lớp cũng nhìn thấy trang trí này.</p>
+        <div className="mascot-grid">
+          {mascots.map((m) => (
+            <button
+              type="button"
+              key={m}
+              className={mascot === m ? "on" : ""}
+              onClick={() => setMascot(m)}
+            >
+              {m}
+            </button>
+          ))}
+        </div>
+        <label>
+          Khẩu hiệu của lớp
+          <input
+            name="motto"
+            defaultValue={myClass.motto}
+            maxLength={120}
+            placeholder="Ví dụ: Lá 1 chăm ngoan – học giỏi – vui khỏe"
+          />
+        </label>
+        <label>
+          Lời giới thiệu
+          <textarea
+            name="intro"
+            rows={3}
+            maxLength={400}
+            defaultValue={myClass.intro}
+            placeholder="Đôi lời cô muốn gửi tới phụ huynh của lớp…"
+          />
+        </label>
+        <label className="upload-label">
+          Ảnh bìa lớp
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={uploadCover}
+            disabled={uploading}
+          />
+        </label>
+        {uploading && <p className="daybar-note">Đang tải ảnh lên…</p>}
+        {coverKey && (
+          <div className="upload-preview cover-preview">
+            <div>
+              <img src={mediaUrl(coverKey)} alt="Ảnh bìa lớp" />
+              <button type="button" onClick={() => setCoverKey("")}>
+                ×
+              </button>
+            </div>
+          </div>
+        )}
+        {error && <p className="form-error">{error}</p>}
+        <button className="save" disabled={busy || uploading}>
+          {busy ? "Đang lưu…" : "Lưu trang trí"}
+        </button>
+      </form>
+    </div>
+  );
+}
+
 function Teacher({ ping }: { ping: (s: string) => void }) {
   const [children, setChildren] = useState<Child[]>([]),
     [parents, setParents] = useState<ManagedUser[]>([]),
     [marks, setMarks] = useState<AttRow[]>([]),
+    [myClasses, setMyClasses] = useState<MyClass[]>([]),
+    [mascots, setMascots] = useState<string[]>([]),
+    [decorFor, setDecorFor] = useState<MyClass | null>(null),
+    [classTick, setClassTick] = useState(0),
     [marked, setMarked] = useState(0);
+  useEffect(() => {
+    fetch("/api/my-class")
+      .then((r) => (r.ok ? r.json() : { classes: [] }))
+      .then((d) => {
+        setMyClasses(d.classes || []);
+        setMascots(d.mascots || []);
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [classTick]);
   useEffect(() => {
     fetch("/api/children")
       .then((r) => r.json())
@@ -4716,17 +4940,48 @@ function Teacher({ ping }: { ping: (s: string) => void }) {
   ).length;
   const absent = marks.filter((x) => x.recorded && x.status !== "Có mặt").length;
 
+  const firstClass = myClasses[0] || null;
   return (
     <>
-      <section className="hero">
-        <div>
-          <p>Không gian làm việc của giáo viên</p>
-          <h1>Quản lý lớp học 🌻</h1>
-          <p>
-            Các số liệu dưới đây được tổng hợp trực tiếp từ hồ sơ của trường.
-          </p>
-        </div>
-      </section>
+      {myClasses.map((c) => (
+        <section
+          className={`hero class-hero${c.coverKey ? " has-cover" : ""}`}
+          key={c.id}
+          style={
+            c.coverKey
+              ? { backgroundImage: `url(${mediaUrl(c.coverKey)})` }
+              : undefined
+          }
+        >
+          <div className="class-hero-inner">
+            <span className="class-mascot">{c.mascot}</span>
+            <div>
+              <p>
+                Lớp chủ nhiệm · {c.childCount} trẻ
+                {c.ageGroup ? ` · ${c.ageGroup}` : ""}
+              </p>
+              <h1>Lớp {c.name}</h1>
+              <p>{c.motto || "Thêm khẩu hiệu để trang lớp thêm ấm áp."}</p>
+            </div>
+          </div>
+          <button onClick={() => setDecorFor(c)}>🎨 Trang trí lớp</button>
+        </section>
+      ))}
+      {firstClass?.intro && (
+        <p className="class-intro">“{firstClass.intro}”</p>
+      )}
+      {!myClasses.length && (
+        <section className="hero">
+          <div>
+            <p>Không gian làm việc của giáo viên</p>
+            <h1>Quản lý lớp học 🌻</h1>
+            <p>
+              Bạn chưa được phân lớp chủ nhiệm. Nhờ quản trị trường gán lớp
+              trong mục Thiết lập để mở trang lớp riêng.
+            </p>
+          </div>
+        </section>
+      )}
       <section className="stats">
         <article>
           <i className="pink">
@@ -4796,6 +5051,18 @@ function Teacher({ ping }: { ping: (s: string) => void }) {
           </div>
         )}
       </div>
+      {decorFor && (
+        <ClassDecor
+          myClass={decorFor}
+          mascots={mascots}
+          ping={ping}
+          close={() => setDecorFor(null)}
+          done={() => {
+            setDecorFor(null);
+            setClassTick((t) => t + 1);
+          }}
+        />
+      )}
     </>
   );
 }
@@ -4827,6 +5094,13 @@ type TodayChild = {
     toDate: string;
     reason: string;
     status: string;
+  } | null;
+  classInfo: {
+    id: number;
+    name: string;
+    mascot: string;
+    motto: string;
+    coverKey: string | null;
   } | null;
 };
 
@@ -4962,9 +5236,16 @@ function ParentToday({ ping }: { ping: (s: string) => void }) {
       )}
       {child && (
         <>
+          {child.classInfo?.coverKey && (
+            <img
+              className="class-cover"
+              src={mediaUrl(child.classInfo.coverKey)}
+              alt={`Ảnh lớp ${child.classInfo.name}`}
+            />
+          )}
           <div className="profile">
-            <i>
-              <ChibiIcon icon="🧒" />
+            <i className="class-mascot-icon">
+              {child.classInfo?.mascot || <ChibiIcon icon="🧒" />}
             </i>
             <div>
               <small>LỚP {child.className.toUpperCase()}</small>
@@ -4975,6 +5256,9 @@ function ParentToday({ ping }: { ping: (s: string) => void }) {
                   ? ` · Dị ứng: ${child.allergy}`
                   : ""}
               </p>
+              {child.classInfo?.motto && (
+                <p className="class-motto">“{child.classInfo.motto}”</p>
+              )}
             </div>
             <span>{child.attendance?.status || "Chưa điểm danh"}</span>
           </div>

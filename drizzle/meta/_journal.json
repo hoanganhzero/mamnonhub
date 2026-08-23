@@ -85,6 +85,13 @@
       "when": 1787499424369,
       "tag": "0011_dark_hairball",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1787500668339,
+      "tag": "0012_spicy_havok",
+      "breakpoints": true
     }
   ]
 }
