@@ -1,8 +1,8 @@
-import { and, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, like, lte, sql } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { attendance, leaveRequests } from "../../../db/schema";
 import { ATTENDANCE_STATUSES } from "../../../lib/care";
-import { dateParam, isDate, isTime, vnToday } from "../../../lib/day";
+import { dateParam, isDate, isMonth, isTime, vnToday } from "../../../lib/day";
 import { classParam, scopedChildren } from "../../../lib/scope";
 import { currentUser } from "../../../lib/session";
 
@@ -37,9 +37,39 @@ export async function GET(request: Request) {
     const user = await staff(request);
     if (!user)
       return Response.json({ error: "Không có quyền" }, { status: 403 });
-    const date = dateParam(request);
     const scope = await scopedChildren(user, classParam(request));
     const childIds = scope.rows.map((x) => x.id);
+
+    // Chế độ tháng: trả toàn bộ lượt điểm danh để xuất bảng chuyên cần.
+    const month = new URL(request.url).searchParams.get("month");
+    if (isMonth(month)) {
+      const marks = childIds.length
+        ? await getDb()
+            .select()
+            .from(attendance)
+            .where(
+              and(
+                like(attendance.date, `${month}-%`),
+                inArray(attendance.childId, childIds),
+              ),
+            )
+        : [];
+      return Response.json({
+        month,
+        children: scope.rows.map((x) => ({
+          childId: x.id,
+          name: x.name,
+          className: x.className,
+        })),
+        marks: marks.map((x) => ({
+          childId: x.childId,
+          date: x.date,
+          status: x.status,
+        })),
+      });
+    }
+
+    const date = dateParam(request);
     const [saved, leaves] = await Promise.all([
       childIds.length
         ? getDb()

@@ -1,6 +1,6 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { getDb } from "../../../db";
-import { children, classes, schools, users } from "../../../db/schema";
+import { childGuardians, children, classes, schools, users } from "../../../db/schema";
 import { hashPassword, makeSalt } from "../../../lib/password";
 import { currentUser } from "../../../lib/session";
 
@@ -23,6 +23,22 @@ export async function GET(request: Request) {
             .where(eq(users.schoolId, actor.schoolId!));
     if (actor.role === "teacher")
       rows = rows.filter(({ user }) => user.role === "parent");
+    // Kèm danh sách con đã liên kết để màn Tài khoản hiển thị và gỡ liên kết.
+    const parentIds = rows
+      .filter(({ user }) => user.role === "parent")
+      .map(({ user }) => user.id);
+    const links = parentIds.length
+      ? await getDb()
+          .select({
+            userId: childGuardians.userId,
+            childId: childGuardians.childId,
+            childName: children.name,
+            className: children.className,
+          })
+          .from(childGuardians)
+          .innerJoin(children, eq(childGuardians.childId, children.id))
+          .where(inArray(childGuardians.userId, parentIds))
+      : [];
     return Response.json({
       users: rows.map(({ user, school }) => ({
         id: user.id,
@@ -32,6 +48,13 @@ export async function GET(request: Request) {
         status: user.status,
         schoolId: user.schoolId,
         schoolName: school?.name || "Toàn hệ thống",
+        children: links
+          .filter((x) => x.userId === user.id)
+          .map((x) => ({
+            id: x.childId,
+            name: x.childName,
+            className: x.className,
+          })),
       })),
     });
   } catch (e) {
@@ -132,10 +155,21 @@ export async function POST(request: Request) {
           { error: "Hồ sơ trẻ không hợp lệ" },
           { status: 400 },
         );
+      // Giữ parentUserId cho bé chưa có liên kết chính, đồng thời ghi vào
+      // child_guardians để bé nhận được nhiều người giám hộ.
+      if (!child.parentUserId)
+        await getDb()
+          .update(children)
+          .set({ parentUserId: user.id })
+          .where(eq(children.id, child.id));
       await getDb()
-        .update(children)
-        .set({ parentUserId: user.id })
-        .where(eq(children.id, child.id));
+        .insert(childGuardians)
+        .values({
+          childId: child.id,
+          userId: user.id,
+          isPrimary: !child.parentUserId,
+        })
+        .onConflictDoNothing();
     }
     return Response.json(
       {
@@ -168,6 +202,8 @@ export async function PATCH(request: Request) {
       fullName?: string;
       username?: string;
       password?: string;
+      linkChildId?: number;
+      unlinkChildId?: number;
     };
     const target = (
       await getDb().select().from(users).where(eq(users.id, p.id)).limit(1)
@@ -192,6 +228,52 @@ export async function PATCH(request: Request) {
         { error: "Quản trị trường chỉ quản lý tài khoản giáo viên" },
         { status: 403 },
       );
+
+    // Giáo viên liên kết / gỡ liên kết trẻ với tài khoản phụ huynh này.
+    if (actor.role === "teacher" && (p.linkChildId || p.unlinkChildId)) {
+      const childId = Number(p.linkChildId || p.unlinkChildId);
+      const child = (
+        await getDb()
+          .select()
+          .from(children)
+          .where(
+            and(eq(children.id, childId), eq(children.schoolId, actor.schoolId!)),
+          )
+          .limit(1)
+      )[0];
+      if (!child)
+        return Response.json({ error: "Hồ sơ trẻ không hợp lệ" }, { status: 400 });
+      if (p.linkChildId) {
+        if (!child.parentUserId)
+          await getDb()
+            .update(children)
+            .set({ parentUserId: target.id })
+            .where(eq(children.id, child.id));
+        await getDb()
+          .insert(childGuardians)
+          .values({
+            childId: child.id,
+            userId: target.id,
+            isPrimary: !child.parentUserId,
+          })
+          .onConflictDoNothing();
+      } else {
+        await getDb()
+          .delete(childGuardians)
+          .where(
+            and(
+              eq(childGuardians.childId, child.id),
+              eq(childGuardians.userId, target.id),
+            ),
+          );
+        if (child.parentUserId === target.id)
+          await getDb()
+            .update(children)
+            .set({ parentUserId: null })
+            .where(eq(children.id, child.id));
+      }
+      return Response.json({ ok: true });
+    }
     const values: {
       status?: string;
       role?: string;
@@ -295,6 +377,7 @@ export async function DELETE(request: Request) {
       .update(children)
       .set({ parentUserId: null })
       .where(eq(children.parentUserId, id));
+    await getDb().delete(childGuardians).where(eq(childGuardians.userId, id));
     if (target.role === "teacher")
       await getDb().update(classes).set({ teacherId: null }).where(eq(classes.teacherId, id));
     await getDb().delete(users).where(eq(users.id, id));

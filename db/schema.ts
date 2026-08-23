@@ -463,3 +463,23 @@ export const auditLogs = sqliteTable(
   },
   (table) => [index("audit_logs_entity_idx").on(table.entity, table.entityId)],
 );
+
+/** Nhiều người giám hộ cho một trẻ — bố, mẹ, ông bà đều có tài khoản riêng. */
+export const childGuardians = sqliteTable(
+  "child_guardians",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    childId: integer("child_id").notNull(),
+    userId: integer("user_id").notNull(),
+    relation: text("relation").notNull().default(""),
+    isPrimary: integer("is_primary", { mode: "boolean" })
+      .notNull()
+      .default(false),
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [
+    uniqueIndex("child_guardians_unique").on(table.childId, table.userId),
+  ],
+);

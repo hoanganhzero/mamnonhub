@@ -1,4 +1,4 @@
-import { and, eq, gte, inArray, like, lte } from "drizzle-orm";
+import { and, eq, gte, like, lte } from "drizzle-orm";
 import { getDb } from "../../../db";
 import {
   announcementReads,
@@ -16,10 +16,20 @@ import { currentUser } from "../../../lib/session";
 export async function GET(request: Request) {
   try {
     const user = await currentUser(request);
-    if (!user?.schoolId || !["admin", "superadmin"].includes(user.role))
+    if (!user || !["admin", "superadmin"].includes(user.role))
       return Response.json(
         { error: "Chỉ ban giám hiệu xem được báo cáo" },
         { status: 403 },
+      );
+    // Quản trị tối cao chọn trường bằng tham số schoolId.
+    const schoolId =
+      user.role === "superadmin"
+        ? Number(new URL(request.url).searchParams.get("schoolId")) || 0
+        : user.schoolId;
+    if (!schoolId)
+      return Response.json(
+        { error: "Chọn trường cần xem báo cáo" },
+        { status: 400 },
       );
     const month = monthParam(request);
     const db = getDb();
@@ -29,11 +39,11 @@ export async function GET(request: Request) {
       db
         .select()
         .from(classes)
-        .where(eq(classes.schoolId, user.schoolId)),
+        .where(eq(classes.schoolId, schoolId)),
       db
         .select()
         .from(children)
-        .where(eq(children.schoolId, user.schoolId)),
+        .where(eq(children.schoolId, schoolId)),
     ]);
     const activeChildren = childRows.filter((x) => x.status !== "Đã nghỉ học");
     const childIds = activeChildren.map((x) => x.id);
@@ -44,7 +54,7 @@ export async function GET(request: Request) {
             .select()
             .from(attendance)
             .where(
-              and(eq(attendance.schoolId, user.schoolId), monthLike),
+              and(eq(attendance.schoolId, schoolId), monthLike),
             )
         : Promise.resolve([]),
       db
@@ -52,7 +62,7 @@ export async function GET(request: Request) {
         .from(incidents)
         .where(
           and(
-            eq(incidents.schoolId, user.schoolId),
+            eq(incidents.schoolId, schoolId),
             gte(incidents.date, `${month}-01`),
             lte(incidents.date, `${month}-31`),
           ),
@@ -62,7 +72,7 @@ export async function GET(request: Request) {
         .from(posts)
         .where(
           and(
-            eq(posts.schoolId, user.schoolId),
+            eq(posts.schoolId, schoolId),
             gte(posts.date, `${month}-01`),
             lte(posts.date, `${month}-31`),
           ),
@@ -70,7 +80,7 @@ export async function GET(request: Request) {
       db
         .select()
         .from(announcements)
-        .where(eq(announcements.schoolId, user.schoolId)),
+        .where(eq(announcements.schoolId, schoolId)),
       db.select().from(announcementReads),
     ]);
 

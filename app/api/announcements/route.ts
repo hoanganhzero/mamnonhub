@@ -63,13 +63,33 @@ export async function GET(request: Request) {
       reads.filter((x) => x.userId === user.id).map((x) => x.announcementId),
     );
 
+    // Người gửi cần biết đích danh ai đã đọc để gọi riêng người chưa nắm tin.
+    const isStaff = ["teacher", "admin", "superadmin"].includes(user.role);
+    const readerIds = isStaff
+      ? [...new Set(reads.map((x) => x.userId))]
+      : [];
+    const readerRows = readerIds.length
+      ? await db
+          .select({ id: users.id, fullName: users.fullName })
+          .from(users)
+          .where(inArray(users.id, readerIds))
+      : [];
+    const readerNames = new Map(readerRows.map((x) => [x.id, x.fullName]));
+
     return Response.json({
       announcements: rows.map(({ item, author }) => ({
         ...item,
         authorName: author || "Nhà trường",
         read: mineRead.has(item.id),
-        // Người gửi cần biết bao nhiêu phụ huynh đã đọc.
         readCount: reads.filter((x) => x.announcementId === item.id).length,
+        readers: isStaff
+          ? reads
+              .filter((x) => x.announcementId === item.id)
+              .map((x) => ({
+                name: readerNames.get(x.userId) || `Người dùng #${x.userId}`,
+                at: x.readAt,
+              }))
+          : [],
       })),
     });
   } catch (error) {

@@ -1,7 +1,7 @@
 import type { SQL } from "drizzle-orm";
 import { and, asc, eq, inArray, isNull, ne, or } from "drizzle-orm";
 import { getDb } from "../db";
-import { children, classes, users } from "../db/schema";
+import { childGuardians, children, classes, users } from "../db/schema";
 
 export type Actor = typeof users.$inferSelect;
 export type Child = typeof children.$inferSelect;
@@ -56,13 +56,24 @@ export async function scopedChildren(
   user: Actor,
   classId: number | null = null,
 ): Promise<ChildScope> {
-  if (user.role === "parent")
+  if (user.role === "parent") {
+    // Bố, mẹ, ông bà — mỗi người một tài khoản, cùng xem một hồ sơ.
+    const links = await getDb()
+      .select({ childId: childGuardians.childId })
+      .from(childGuardians)
+      .where(eq(childGuardians.userId, user.id));
+    const ids = links.map((x) => x.childId);
     return {
-      rows: await listChildren(eq(children.parentUserId, user.id)),
+      rows: await listChildren(
+        ids.length
+          ? or(eq(children.parentUserId, user.id), inArray(children.id, ids))
+          : eq(children.parentUserId, user.id),
+      ),
       classes: [],
       scope: "parent",
       classId: null,
     };
+  }
 
   if (user.role === "superadmin")
     return {

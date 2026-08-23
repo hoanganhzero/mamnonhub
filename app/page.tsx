@@ -5,16 +5,6 @@ import * as XLSX from "xlsx";
 import { vnNow, vnToday } from "../lib/day";
 import { weekStartOf } from "../lib/week";
 
-const nav = [
-  ["🏡", "Tổng quan"],
-  ["🧒", "Hồ sơ trẻ"],
-  ["🙋", "Điểm danh"],
-  ["💗", "Ăn · Ngủ · Sức khỏe"],
-  ["📔", "Nhật ký lớp"],
-  ["🍱", "Thực đơn"],
-  ["📣", "Thông báo"],
-  ["🧸", "Thiết lập"],
-];
 const iconMap: Record<string, string> = {
   "🏡": "dashboard",
   "🏫": "school",
@@ -63,7 +53,6 @@ function ChibiIcon({
 export default function Home() {
   const [role, setRole] = useState<"admin" | "teacher" | "parent">("teacher"),
     [active, setActive] = useState("Tổng quan"),
-    [setup, setSetup] = useState(false),
     [profileOpen, setProfileOpen] = useState(false),
     [toast, setToast] = useState(""),
     [authUser, setAuthUser] = useState<AuthUser | null>(null),
@@ -359,61 +348,6 @@ export default function Home() {
           ))}
         </div>
       </section>
-      {setup && (
-        <div className="back" onClick={() => setSetup(false)}>
-          <form
-            className="modal"
-            onClick={(e) => e.stopPropagation()}
-            onSubmit={(e) => {
-              e.preventDefault();
-              setSetup(false);
-              ping("Đã lưu cấu hình nhà trường");
-            }}
-          >
-            <button type="button" className="x" onClick={() => setSetup(false)}>
-              ×
-            </button>
-            <i className="big">
-              <ChibiIcon icon="🏫" />
-            </i>
-            <h2>Thiết lập nhà trường</h2>
-            <p>Thông tin dùng chung cho các lớp và báo cáo.</p>
-            <label>
-              Tên trường
-              <input defaultValue="Trường Mầm non Hoa Nắng" />
-            </label>
-            <div className="row">
-              <label>
-                Năm học
-                <select defaultValue="2026–2027">
-                  <option>2026–2027</option>
-                  <option>2027–2028</option>
-                </select>
-              </label>
-              <label>
-                Tên lớp
-                <input defaultValue="Lá 1" />
-              </label>
-            </div>
-            <div className="row">
-              <label>
-                Độ tuổi
-                <select>
-                  <option>5–6 tuổi</option>
-                  <option>4–5 tuổi</option>
-                  <option>3–4 tuổi</option>
-                  <option>Nhà trẻ</option>
-                </select>
-              </label>
-              <label>
-                Giáo viên chủ nhiệm
-                <input defaultValue="Nguyễn Minh Thư" />
-              </label>
-            </div>
-            <button className="save">Lưu thiết lập</button>
-          </form>
-        </div>
-      )}
       {profileOpen && (
         <ProfileModal
           user={authUser}
@@ -712,74 +646,6 @@ function ProfileModal({
   );
 }
 
-function Hero({
-  parent = false,
-  ping,
-}: {
-  parent?: boolean;
-  ping: (s: string) => void;
-}) {
-  return (
-    <section className="hero">
-      <div>
-        <p>
-          {parent ? "Không gian của phụ huynh" : "Thứ Sáu, 21 tháng 8, 2026"}
-        </p>
-        <h1>
-          {parent ? "Hôm nay của Gia Hân 🌸" : "Chào buổi sáng, Cô Thư! 🌻"}
-        </h1>
-        <p>
-          {parent
-            ? "Cùng theo dõi những khoảnh khắc đáng yêu của con tại trường."
-            : "Chúc cô và các con có một ngày thật vui tại lớp Lá 1."}
-        </p>
-      </div>
-      <button
-        onClick={() =>
-          ping(
-            parent
-              ? "Đã mở trò chuyện với cô giáo"
-              : "Đã mở sổ điểm danh hôm nay",
-          )
-        }
-      >
-        {parent ? "💌 Nhắn cô giáo" : "🙋 Điểm danh ngay"}
-      </button>
-    </section>
-  );
-}
-const statTeacher = [
-  ["🧒", "SĨ SỐ LỚP", "28 trẻ", "14 nam · 14 nữ", "pink"],
-  ["🙋", "ĐÃ ĐẾN LỚP", "25 trẻ", "↑ 89% có mặt", "green"],
-  ["☁️", "XIN NGHỈ", "3 trẻ", "2 có phép · 1 chưa báo", "yellow"],
-  ["💗", "CẦN LƯU Ý", "2 trẻ", "Dị ứng · Sức khỏe", "blue"],
-];
-function Stats({ parent = false }: { parent?: boolean }) {
-  const data = parent
-    ? [
-        ["🙋", "ĐẾN LỚP", "07:12", "Cô Thư đã đón bé", "green"],
-        ["🍚", "BỮA TRƯA", "Ăn hết", "1 suất · Uống đủ nước", "yellow"],
-        ["😴", "GIẤC NGỦ", "1h 35p", "Ngủ ngon, đúng giờ", "blue"],
-        ["🥰", "TÂM TRẠNG", "Vui vẻ", "Hòa đồng cùng các bạn", "pink"],
-      ]
-    : statTeacher;
-  return (
-    <section className="stats">
-      {data.map(([i, l, v, p, c]) => (
-        <article key={l}>
-          <i className={c}>
-            <ChibiIcon icon={i} />
-          </i>
-          <div>
-            <small>{l}</small>
-            <b>{v}</b>
-            <p>{p}</p>
-          </div>
-        </article>
-      ))}
-    </section>
-  );
-}
 function TeacherArea({
   active,
   ping,
@@ -1283,6 +1149,7 @@ type ManagedUser = {
   status: string;
   schoolId?: number | null;
   schoolName: string;
+  children?: { id: number; name: string; className: string }[];
 };
 type Campus = { id: number; name: string; address: string; status: string };
 type ClassRow = {
@@ -1693,6 +1560,23 @@ function AccountManager({
     await load();
     ping("Đã lưu thông tin tài khoản");
   }
+  async function linkChild(userId: number, childId: number, unlink = false) {
+    const r = await fetch("/api/users", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          id: userId,
+          [unlink ? "unlinkChildId" : "linkChildId"]: childId,
+        }),
+      }),
+      d = await r.json();
+    if (!r.ok) {
+      ping(d.error || "Chưa cập nhật được liên kết");
+      return;
+    }
+    await load();
+    ping(unlink ? "Đã gỡ liên kết" : "Đã liên kết thêm bé");
+  }
   async function removeUser(id: number) {
     if (!confirm("Xóa tài khoản này?")) return;
     const r = await fetch(`/api/users?id=${id}`, { method: "DELETE" }),
@@ -1739,6 +1623,40 @@ function AccountManager({
               <tr key={u.id}>
                 <td>
                   <b>{u.fullName}</b>
+                  {u.role === "parent" && actor?.role === "teacher" && (
+                    <div className="guardian-links">
+                      {(u.children || []).map((c) => (
+                        <span key={c.id}>
+                          {c.name}
+                          <button
+                            title={`Gỡ liên kết ${c.name}`}
+                            onClick={() => linkChild(u.id, c.id, true)}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                      <select
+                        value=""
+                        onChange={(e) => {
+                          const id = Number(e.target.value);
+                          if (id) linkChild(u.id, id);
+                        }}
+                      >
+                        <option value="">＋ Liên kết bé…</option>
+                        {childOptions
+                          .filter(
+                            (c) =>
+                              !(u.children || []).some((x) => x.id === c.id),
+                          )
+                          .map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.name} · {c.className}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                  )}
                 </td>
                 <td>@{u.username}</td>
                 <td>{u.schoolName}</td>
@@ -2579,9 +2497,12 @@ function Attendance({ ping }: { ping: (s: string) => void }) {
     [classes, setClasses] = useState<ClassOption[]>([]),
     [scope, setScope] = useState(""),
     [rows, setRows] = useState<AttRow[]>([]),
-    [draft, setDraft] = useState<Record<number, { status: string; note: string }>>(
-      {},
-    ),
+    [draft, setDraft] = useState<
+      Record<
+        number,
+        { status: string; note: string; checkInAt: string; checkOutAt: string }
+      >
+    >({}),
     [leaves, setLeaves] = useState<LeaveRow[]>([]),
     [pickups, setPickups] = useState<PickupNotice[]>([]),
     [saving, setSaving] = useState(false),
@@ -2609,7 +2530,12 @@ function Attendance({ ping }: { ping: (s: string) => void }) {
           Object.fromEntries(
             (d.rows || []).map((x: AttRow) => [
               x.childId,
-              { status: x.status, note: x.note },
+              {
+                status: x.status,
+                note: x.note,
+                checkInAt: x.checkInAt,
+                checkOutAt: x.checkOutAt,
+              },
             ]),
           ),
         );
@@ -2644,15 +2570,35 @@ function Attendance({ ping }: { ping: (s: string) => void }) {
   }, [tick, date]);
 
   const reload = () => setTick((t) => t + 1);
+  // Bấm "Có mặt" cho hôm nay thì tự điền giờ đến hiện tại, cô sửa được sau.
   const pick = (childId: number, status: string) =>
     setDraft((s) => ({
       ...s,
-      [childId]: { status, note: status === "Có mặt" ? "" : s[childId]?.note || "" },
+      [childId]: {
+        status,
+        note: status === "Có mặt" ? "" : s[childId]?.note || "",
+        checkInAt:
+          status === "Có mặt"
+            ? s[childId]?.checkInAt || (date === today ? vnNow() : "")
+            : "",
+        checkOutAt: status === "Có mặt" ? s[childId]?.checkOutAt || "" : "",
+      },
     }));
+  const setTime = (childId: number, field: "checkInAt" | "checkOutAt", value: string) =>
+    setDraft((s) => ({ ...s, [childId]: { ...s[childId], [field]: value } }));
   const allPresent = () =>
-    setDraft(
+    setDraft((s) =>
       Object.fromEntries(
-        rows.map((x) => [x.childId, { status: "Có mặt", note: "" }]),
+        rows.map((x) => [
+          x.childId,
+          {
+            status: "Có mặt",
+            note: "",
+            checkInAt:
+              s[x.childId]?.checkInAt || (date === today ? vnNow() : ""),
+            checkOutAt: s[x.childId]?.checkOutAt || "",
+          },
+        ]),
       ),
     );
   const present = rows.filter(
@@ -2673,6 +2619,8 @@ function Attendance({ ping }: { ping: (s: string) => void }) {
             childId: x.childId,
             status: draft[x.childId]?.status || "Có mặt",
             note: draft[x.childId]?.note || "",
+            checkInAt: draft[x.childId]?.checkInAt || "",
+            checkOutAt: draft[x.childId]?.checkOutAt || "",
           })),
         }),
       }),
@@ -2797,6 +2745,61 @@ function Attendance({ ping }: { ping: (s: string) => void }) {
           ghi đè.
         </p>
       )}
+      {rows.length > 0 && (
+        <p className="export-line">
+          <button
+            className="linkbtn"
+            onClick={async () => {
+              const month = date.slice(0, 7);
+              const r = await fetch(`/api/attendance?month=${month}`),
+                d = await r.json();
+              if (!r.ok) {
+                ping(d.error || "Không xuất được bảng chuyên cần");
+                return;
+              }
+              const days = [
+                ...new Set(
+                  (d.marks || []).map((m: { date: string }) => m.date),
+                ),
+              ].sort() as string[];
+              const sheet = XLSX.utils.json_to_sheet(
+                (d.children || []).map(
+                  (c: { childId: number; name: string; className: string }) => {
+                    const row: Record<string, string | number> = {
+                      "Họ tên": c.name,
+                      "Lớp": c.className,
+                    };
+                    let present = 0;
+                    for (const day of days) {
+                      const mark = (d.marks || []).find(
+                        (m: { childId: number; date: string }) =>
+                          m.childId === c.childId && m.date === day,
+                      );
+                      row[day.slice(8)] = mark
+                        ? mark.status === "Có mặt"
+                          ? "x"
+                          : mark.status === "Vắng có phép"
+                            ? "P"
+                            : "K"
+                        : "";
+                      if (mark?.status === "Có mặt") present += 1;
+                    }
+                    row["Ngày ăn"] = present;
+                    return row;
+                  },
+                ),
+              );
+              const book = XLSX.utils.book_new();
+              XLSX.utils.book_append_sheet(book, sheet, month);
+              XLSX.writeFile(book, `diem-danh-${month}.xlsx`);
+              ping(`Đã xuất bảng chuyên cần tháng ${month}`);
+            }}
+          >
+            ⇩ Xuất bảng chuyên cần tháng {date.slice(0, 7)} (x = có mặt · P = có
+            phép · K = không phép)
+          </button>
+        </p>
+      )}
       <div className="panel">
         <div className="att-grid">
           {rows.map((x) => {
@@ -2822,7 +2825,30 @@ function Attendance({ ping }: { ping: (s: string) => void }) {
                     </button>
                   ))}
                 </div>
-                {status !== "Có mặt" && (
+                {status === "Có mặt" ? (
+                  <div className="att-times">
+                    <label>
+                      Đến
+                      <input
+                        type="time"
+                        value={draft[x.childId]?.checkInAt || ""}
+                        onChange={(e) =>
+                          setTime(x.childId, "checkInAt", e.target.value)
+                        }
+                      />
+                    </label>
+                    <label>
+                      Về
+                      <input
+                        type="time"
+                        value={draft[x.childId]?.checkOutAt || ""}
+                        onChange={(e) =>
+                          setTime(x.childId, "checkOutAt", e.target.value)
+                        }
+                      />
+                    </label>
+                  </div>
+                ) : (
                   <input
                     className="att-note"
                     placeholder="Lý do (không bắt buộc)"
@@ -2830,7 +2856,7 @@ function Attendance({ ping }: { ping: (s: string) => void }) {
                     onChange={(e) =>
                       setDraft((s) => ({
                         ...s,
-                        [x.childId]: { status, note: e.target.value },
+                        [x.childId]: { ...s[x.childId], status, note: e.target.value },
                       }))
                     }
                   />
@@ -2864,6 +2890,7 @@ type CareRow = {
   lunch: string;
   snack: string;
   sleep: string;
+  sleepMinutes: number | null;
   mood: string;
   health: string;
   note: string;
@@ -2950,6 +2977,7 @@ function Care({ ping }: { ping: (s: string) => void }) {
             lunch: x.lunch,
             snack: x.snack,
             sleep: x.sleep,
+            sleepMinutes: x.sleepMinutes ?? "",
             mood: x.mood,
             health: x.health,
             note: x.note,
@@ -3030,6 +3058,29 @@ function Care({ ping }: { ping: (s: string) => void }) {
                         </option>
                       ))}
                     </select>
+                    {field === "sleep" && (
+                      <input
+                        className="sleep-minutes"
+                        inputMode="numeric"
+                        placeholder="phút"
+                        value={x.sleepMinutes ?? ""}
+                        onChange={(e) =>
+                          setRows((s) =>
+                            s.map((r) =>
+                              r.childId === x.childId
+                                ? {
+                                    ...r,
+                                    sleepMinutes:
+                                      e.target.value === ""
+                                        ? null
+                                        : Number(e.target.value) || 0,
+                                  }
+                                : r,
+                            ),
+                          )
+                        }
+                      />
+                    )}
                   </td>
                 ))}
                 <td>
@@ -3586,9 +3637,29 @@ function Incidents({ ping }: { ping: (s: string) => void }) {
     [severities, setSeverities] = useState<string[]>([]),
     [today, setToday] = useState(vnToday()),
     [open, setOpen] = useState(false),
+    [photo, setPhoto] = useState<MediaRef | null>(null),
+    [uploading, setUploading] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [tick, setTick] = useState(0);
+
+  async function uploadPhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setUploading(true);
+    setError("");
+    const form = new FormData();
+    form.append("file", file);
+    const r = await fetch("/api/media", { method: "POST", body: form }),
+      d = await r.json();
+    setUploading(false);
+    if (!r.ok) {
+      setError(d.error || "Không tải được ảnh");
+      return;
+    }
+    setPhoto(d.media[0]);
+  }
 
   useEffect(() => {
     let live = true;
@@ -3626,6 +3697,7 @@ function Incidents({ ping }: { ping: (s: string) => void }) {
           severity: String(f.get("severity")),
           description: String(f.get("description")),
           handling: String(f.get("handling") || ""),
+          mediaKey: photo?.key || "",
         }),
       }),
       d = await r.json();
@@ -3635,6 +3707,7 @@ function Incidents({ ping }: { ping: (s: string) => void }) {
       return;
     }
     setOpen(false);
+    setPhoto(null);
     setTick((t) => t + 1);
     ping("Đã gửi tới phụ huynh, chờ xác nhận");
   }
@@ -3667,6 +3740,16 @@ function Incidents({ ping }: { ping: (s: string) => void }) {
               </small>
               <p>{x.description}</p>
               {x.handling && <p className="handling">Xử lý: {x.handling}</p>}
+              {x.mediaKey && (
+                <a href={mediaUrl(x.mediaKey)} target="_blank" rel="noreferrer">
+                  <img
+                    className="incident-photo"
+                    src={mediaUrl(x.mediaKey)}
+                    alt={`Ảnh sự cố của ${x.childName}`}
+                    loading="lazy"
+                  />
+                </a>
+              )}
             </div>
             <span className={x.acknowledgedBy ? "leave-status ok" : "leave-status wait"}>
               {x.acknowledgedBy ? "PH đã xác nhận" : "Chờ xác nhận"}
@@ -3734,8 +3817,28 @@ function Incidents({ ping }: { ping: (s: string) => void }) {
               Nhà trường đã xử lý
               <textarea name="handling" rows={2} placeholder="Chườm mát, cho uống nước, theo dõi 30 phút…" />
             </label>
+            <label className="upload-label">
+              Ảnh kèm theo (không bắt buộc)
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={uploadPhoto}
+                disabled={uploading}
+              />
+            </label>
+            {uploading && <p className="daybar-note">Đang tải ảnh lên…</p>}
+            {photo && (
+              <div className="upload-preview">
+                <div>
+                  <img src={mediaUrl(photo.key)} alt="Ảnh sự cố" />
+                  <button type="button" onClick={() => setPhoto(null)}>
+                    ×
+                  </button>
+                </div>
+              </div>
+            )}
             {error && <p className="form-error">{error}</p>}
-            <button className="save" disabled={busy}>
+            <button className="save" disabled={busy || uploading}>
               {busy ? "Đang gửi…" : "Gửi cho phụ huynh"}
             </button>
           </form>
@@ -4023,6 +4126,24 @@ function MenuBoard({
                 </div>
               );
             })}
+            {writable ? (
+              <div className="menu-note">
+                <small>GHI CHÚ</small>
+                <textarea
+                  rows={1}
+                  value={d.note}
+                  onChange={(e) => edit(d.weekday, "note", e.target.value)}
+                  placeholder="Ví dụ: đổi món vì trời mưa…"
+                />
+              </div>
+            ) : (
+              d.note && (
+                <div className="menu-note">
+                  <small>GHI CHÚ</small>
+                  <p>{d.note}</p>
+                </div>
+              )
+            )}
           </article>
         ))}
       </div>
@@ -4388,6 +4509,7 @@ type NoticeRow = {
   authorName: string;
   read: boolean;
   readCount: number;
+  readers: { name: string; at: string }[];
   createdAt: string;
 };
 
@@ -4395,6 +4517,7 @@ function Notices({ ping }: { ping: (s: string) => void }) {
   const [open, setOpen] = useState(false),
     [items, setItems] = useState<NoticeRow[]>([]),
     [classes, setClasses] = useState<ClassOption[]>([]),
+    [readersFor, setReadersFor] = useState<number | null>(null),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [tick, setTick] = useState(0);
@@ -4471,9 +4594,27 @@ function Notices({ ping }: { ping: (s: string) => void }) {
                 <h2>{x.title}</h2>
                 <p>{x.content}</p>
                 <footer>
-                  <span>👁 {x.readCount} phụ huynh đã đọc</span>
+                  <button
+                    className="linkbtn readers-toggle"
+                    onClick={() =>
+                      setReadersFor((cur) => (cur === x.id ? null : x.id))
+                    }
+                  >
+                    👁 {x.readCount} người đã {x.requiresAck ? "xác nhận" : "đọc"}
+                    {x.readCount > 0 &&
+                      (readersFor === x.id ? " · thu gọn" : " · xem danh sách")}
+                  </button>
                   {x.requiresAck && <span>✓ Cần xác nhận</span>}
                 </footer>
+                {readersFor === x.id && x.readers.length > 0 && (
+                  <div className="readers-list">
+                    {x.readers.map((r, i) => (
+                      <small key={i}>
+                        ✓ {r.name} · {r.at}
+                      </small>
+                    ))}
+                  </div>
+                )}
               </section>
             </article>
           ))}
@@ -4554,7 +4695,8 @@ function Teacher({ ping }: { ping: (s: string) => void }) {
   useEffect(() => {
     fetch("/api/children")
       .then((r) => r.json())
-      .then((d) => setChildren(d.children || []));
+      .then((d) => setChildren(d.children || []))
+      .catch(() => ping("Không tải được hồ sơ trẻ"));
     fetch("/api/users")
       .then((r) => (r.ok ? r.json() : { users: [] }))
       .then((d) =>
@@ -4854,6 +4996,16 @@ function ParentToday({ ping }: { ping: (s: string) => void }) {
                 </b>
                 <p>{x.description}</p>
                 {x.handling && <p className="handling">Nhà trường đã xử lý: {x.handling}</p>}
+                {x.mediaKey && (
+                  <a href={mediaUrl(x.mediaKey)} target="_blank" rel="noreferrer">
+                    <img
+                      className="incident-photo"
+                      src={mediaUrl(x.mediaKey)}
+                      alt="Ảnh sự cố"
+                      loading="lazy"
+                    />
+                  </a>
+                )}
                 <button className="save" onClick={() => acknowledge(x.id)}>
                   Tôi đã đọc và nắm được thông tin
                 </button>
@@ -5383,7 +5535,7 @@ function ParentFees({ ping }: { ping: (s: string) => void }) {
         setRows(d.invoices || []);
         setBank(d.settings);
       })
-      .catch(() => {});
+      .catch(() => ping("Không tải được phiếu thu"));
     return () => {
       live = false;
     };
@@ -5484,13 +5636,30 @@ type ClassReport = {
   posts: number;
 };
 
+type AuditRow = {
+  id: number;
+  actorName: string;
+  actorRole: string;
+  action: string;
+  entity: string;
+  entityId: number | null;
+  detail: string;
+  createdAt: string;
+};
+
 /** Báo cáo tháng cho ban giám hiệu. */
 function ReportBoard() {
   const [month, setMonth] = useState(vnToday().slice(0, 7)),
     [totals, setTotals] = useState<ReportTotals | null>(null),
+    [logs, setLogs] = useState<AuditRow[]>([]),
+    [showLogs, setShowLogs] = useState(false),
     [perClass, setPerClass] = useState<ClassReport[]>([]);
   useEffect(() => {
     let live = true;
+    fetch("/api/audit")
+      .then((r) => (r.ok ? r.json() : { logs: [] }))
+      .then((d) => live && setLogs(d.logs || []))
+      .catch(() => {});
     fetch(`/api/reports?month=${month}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
@@ -5518,6 +5687,29 @@ function ReportBoard() {
           Tháng
           <input type="month" value={month} max={vnToday().slice(0, 7)} onChange={(e) => e.target.value && setMonth(e.target.value)} />
         </label>
+        <button
+          className="ghost"
+          onClick={() => {
+            const sheet = XLSX.utils.json_to_sheet(
+              perClass.map((x) => ({
+                "Lớp": x.name,
+                "Độ tuổi": x.ageGroup,
+                "Sĩ số": x.childCount,
+                "Lượt có mặt": x.present,
+                "Vắng có phép": x.excused,
+                "Vắng không phép": x.unexcused,
+                "Chuyên cần (%)": x.attendanceRate ?? "",
+                "Sự cố": x.incidents,
+                "Bài nhật ký": x.posts,
+              })),
+            );
+            const book = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(book, sheet, month);
+            XLSX.writeFile(book, `bao-cao-${month}.xlsx`);
+          }}
+        >
+          ⇩ Xuất Excel
+        </button>
       </div>
       {totals && (
         <section className="stats">
@@ -5612,6 +5804,60 @@ function ReportBoard() {
         </table>
         {!perClass.length && (
           <div className="empty">Trường chưa có lớp nào trong mục Thiết lập.</div>
+        )}
+      </div>
+      <div className="panel">
+        <div className="care-head">
+          <div>
+            <b>Nhật ký thao tác</b>
+            <small>
+              {logs.length} thao tác gần nhất — ai sửa gì, lúc nào
+            </small>
+          </div>
+          <button className="pill-action" onClick={() => setShowLogs((x) => !x)}>
+            {showLogs ? "Thu gọn" : "Xem nhật ký"}
+          </button>
+        </div>
+        {showLogs && (
+          <div className="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>THỜI ĐIỂM</th>
+                  <th>NGƯỜI THAO TÁC</th>
+                  <th>HÀNH ĐỘNG</th>
+                  <th>ĐỐI TƯỢNG</th>
+                  <th>CHI TIẾT</th>
+                </tr>
+              </thead>
+              <tbody>
+                {logs.map((x) => (
+                  <tr key={x.id}>
+                    <td>{x.createdAt}</td>
+                    <td>
+                      <b>{x.actorName}</b>
+                      <small>
+                        {x.actorRole === "admin"
+                          ? "Quản trị trường"
+                          : x.actorRole === "teacher"
+                            ? "Giáo viên"
+                            : x.actorRole}
+                      </small>
+                    </td>
+                    <td>{x.action}</td>
+                    <td>
+                      {x.entity}
+                      {x.entityId ? ` #${x.entityId}` : ""}
+                    </td>
+                    <td>{x.detail || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {!logs.length && (
+              <div className="empty">Chưa có thao tác nào được ghi lại.</div>
+            )}
+          </div>
         )}
       </div>
     </>
@@ -5762,9 +6008,37 @@ function AssessmentBoard({ ping }: { ping: (s: string) => void }) {
           </tbody>
         </table>
         {childList.length > 0 && (
-          <button className="save finish" onClick={save} disabled={saving}>
-            {saving ? "Đang lưu…" : `Lưu đánh giá ${childList.length} trẻ`}
-          </button>
+          <div className="assess-actions">
+            <button className="save finish" onClick={save} disabled={saving}>
+              {saving ? "Đang lưu…" : `Lưu đánh giá ${childList.length} trẻ`}
+            </button>
+            <button
+              className="outline"
+              onClick={() => {
+                const sheet = XLSX.utils.json_to_sheet(
+                  childList.map((c) => {
+                    const row: Record<string, string> = {
+                      "Họ tên": c.name,
+                      "Lớp": c.className,
+                    };
+                    for (const d of domains)
+                      row[d.label] = valueOf(c.childId, d.key);
+                    row["Nhận xét"] = valueOf(c.childId, "comment");
+                    return row;
+                  }),
+                );
+                const book = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(book, sheet, "Đánh giá");
+                XLSX.writeFile(
+                  book,
+                  `danh-gia-${period.replace(/[^\p{L}\p{N}]+/gu, "-")}.xlsx`,
+                );
+                ping("Đã xuất phiếu đánh giá");
+              }}
+            >
+              ⇩ Xuất phiếu đánh giá Excel
+            </button>
+          </div>
         )}
       </div>
       {!childList.length && <div className="empty">Chưa có hồ sơ trẻ.</div>}
@@ -5989,7 +6263,25 @@ function PickupSection({
           {notices.slice(0, 5).map((x) => (
             <small key={x.id}>
               {x.date}
-              {x.expectedTime ? ` ${x.expectedTime}` : ""} · {x.personName} đón {x.childName}
+              {x.expectedTime ? ` ${x.expectedTime}` : ""} · {x.personName} đón{" "}
+              {x.childName}
+              {x.date >= today && (
+                <button
+                  type="button"
+                  className="linkbtn"
+                  onClick={async () => {
+                    const r = await fetch(`/api/pickup?id=${x.id}&kind=notice`, {
+                      method: "DELETE",
+                    });
+                    if (r.ok) {
+                      setTick((t) => t + 1);
+                      ping("Đã hủy lời báo người đón");
+                    }
+                  }}
+                >
+                  Hủy
+                </button>
+              )}
             </small>
           ))}
         </div>
@@ -6006,28 +6298,6 @@ function Title({ title, sub }: { title: string; sub: string }) {
         <p>{sub}</p>
       </div>
       <button>Xem tất cả →</button>
-    </div>
-  );
-}
-function Timeline({
-  t,
-  x,
-  s,
-  c,
-}: {
-  t: string;
-  x: string;
-  s: string;
-  c: string;
-}) {
-  return (
-    <div className="time">
-      <i className={c} />
-      <time>{t}</time>
-      <div>
-        <b>{x}</b>
-        <small>{s}</small>
-      </div>
     </div>
   );
 }
