@@ -2,7 +2,8 @@
 import { useEffect, useState } from "react";
 import "./chibi.css";
 import * as XLSX from "xlsx";
-import { vnToday } from "../lib/day";
+import { vnNow, vnToday } from "../lib/day";
+import { weekStartOf } from "../lib/week";
 
 const nav = [
   ["🏡", "Tổng quan"],
@@ -66,6 +67,11 @@ export default function Home() {
     [profileOpen, setProfileOpen] = useState(false),
     [toast, setToast] = useState(""),
     [authUser, setAuthUser] = useState<AuthUser | null>(null),
+    [alerts, setAlerts] = useState<{
+      total: number;
+      items: { kind: string; label: string; count: number; target: string }[];
+    }>({ total: 0, items: [] }),
+    [alertsOpen, setAlertsOpen] = useState(false),
     [schoolBrand, setSchoolBrand] = useState<any>(null),
     [authReady, setAuthReady] = useState(false);
   useEffect(() => {
@@ -98,6 +104,20 @@ export default function Home() {
     setToast(s);
     setTimeout(() => setToast(""), 2200);
   };
+  useEffect(() => {
+    let live = true;
+    if (!authUser) return;
+    fetch("/api/notifications")
+      .then((r) => (r.ok ? r.json() : { total: 0, items: [] }))
+      .then(
+        (d) =>
+          live && setAlerts({ total: d.total || 0, items: d.items || [] }),
+      )
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [authUser, active, toast]);
   if (!authReady)
     return (
       <div className="auth-loading">
@@ -130,6 +150,7 @@ export default function Home() {
             ["🏡", "Tổng quan"],
             ["👩🏻‍🏫", "Tài khoản"],
             ["🏫", "Thiết lập"],
+            ["🍲", "Thực đơn"],
             ["📣", "Thông báo"],
           ]
         : authUser.role === "teacher"
@@ -137,14 +158,20 @@ export default function Home() {
               ["🏡", "Tổng quan"],
               ["🙋", "Điểm danh"],
               ["♥", "Sổ chăm sóc"],
+              ["✎", "Nhật ký"],
+              ["💬", "Tin nhắn"],
               ["🧒", "Hồ sơ trẻ"],
               ["📣", "Thông báo"],
               ["👨‍👩‍👧", "Phụ huynh"],
             ]
           : [
               ["👨‍👩‍👧", "Hôm nay của con"],
+              ["✎", "Nhật ký"],
+              ["💬", "Tin nhắn"],
               ["☁️", "Xin nghỉ"],
               ["📣", "Thông báo"],
+              ["💗", "Sức khỏe"],
+              ["🍲", "Thực đơn"],
             ];
   return (
     <main className="shell">
@@ -183,7 +210,9 @@ export default function Home() {
                 <ChibiIcon icon={i} />
               </i>
               {n}
-              {n === "Thông báo" && <em>3</em>}
+              {alerts.items.find((a) => a.target === n) && (
+                <em>{alerts.items.find((a) => a.target === n)!.count}</em>
+              )}
             </button>
           ))}
         </nav>
@@ -214,9 +243,13 @@ export default function Home() {
             </b>
           </div>
           <div className="tools">
-            <button className="bell" aria-label="Thông báo">
+            <button
+              className="bell"
+              aria-label={`Thông báo: ${alerts.total} việc cần xem`}
+              onClick={() => setAlertsOpen((x) => !x)}
+            >
               <ChibiIcon icon="📣" />
-              <em>3</em>
+              {alerts.total > 0 && <em>{alerts.total}</em>}
             </button>
             <span className="role-pill">
               {authUser.role === "superadmin"
@@ -259,12 +292,35 @@ export default function Home() {
                   body: JSON.stringify({ action: "logout" }),
                 });
                 setAuthUser(null);
+                setAlerts({ total: 0, items: [] });
+                setAlertsOpen(false);
               }}
             >
               Đăng xuất
             </button>
           </div>
         </header>
+        {alertsOpen && (
+          <div className="alert-panel">
+            <b>Việc cần xem</b>
+            {alerts.items.map((a) => (
+              <button
+                key={a.kind}
+                onClick={() => {
+                  setActive(a.target);
+                  setAlertsOpen(false);
+                }}
+              >
+                <em>{a.count}</em>
+                <span>{a.label}</span>
+                <small>Mở {a.target} →</small>
+              </button>
+            ))}
+            {!alerts.items.length && (
+              <p>Không có việc nào đang chờ. Mọi thứ đã xong.</p>
+            )}
+          </div>
+        )}
         <div className="content">
           {schoolBrand?.bannerKey && (
             <img
@@ -730,7 +786,9 @@ function TeacherArea({
 }) {
   if (active === "Hồ sơ trẻ") return <ChildrenManager ping={ping} />;
   if (active === "Điểm danh") return <Attendance ping={ping} />;
-  if (active === "Sổ chăm sóc") return <Care ping={ping} />;
+  if (active === "Sổ chăm sóc") return <CareArea ping={ping} />;
+  if (active === "Nhật ký") return <Journal ping={ping} />;
+  if (active === "Tin nhắn") return <Messages ping={ping} />;
   if (active === "Phụ huynh")
     return <AccountManager ping={ping} back={() => {}} />;
   if (active === "Thông báo") return <Notices ping={ping} />;
@@ -821,6 +879,17 @@ function SuperAdmin({
     );
   if (active === "Tài khoản")
     return <AccountManager ping={ping} back={() => setActive("Tổng quan")} />;
+  if (active === "Thực đơn")
+    return (
+      <>
+        <PageHead
+          icon="🍲"
+          title="Thực đơn tuần"
+          sub="Nhập một lần, mọi lớp cùng dùng và tự đối chiếu dị ứng"
+        />
+        <MenuBoard ping={ping} editable />
+      </>
+    );
   if (!data)
     return (
       <div className="panel empty">Đang tổng hợp dữ liệu toàn hệ thống…</div>
@@ -2865,11 +2934,6 @@ function Care({ ping }: { ping: (s: string) => void }) {
 
   return (
     <>
-      <PageHead
-        icon="♥"
-        title="Sổ chăm sóc"
-        sub="Ăn · ngủ · tâm trạng · sức khỏe — phụ huynh xem được ngay sau khi lưu"
-      />
       <DayBar
         date={date}
         setDate={setDate}
@@ -2958,167 +3022,1363 @@ function Care({ ping }: { ping: (s: string) => void }) {
   );
 }
 
+type MediaRef = { key: string; contentType: string };
+type PostRow = {
+  id: number;
+  classId: number | null;
+  title: string;
+  content: string;
+  category: string;
+  date: string;
+  authorId: number;
+  authorName: string;
+  media: MediaRef[];
+  children: { id: number; name: string }[];
+  taggedCount: number;
+};
+type MessageRow = {
+  id: number;
+  childId: number;
+  body: string;
+  senderName: string;
+  senderRole: string;
+  mine: boolean;
+  readAt: string;
+  createdAt: string;
+};
+type ThreadRow = {
+  childId: number;
+  name: string;
+  className: string;
+  lastBody: string;
+  lastAt: string;
+  unread: number;
+};
+type IncidentRow = {
+  id: number;
+  childId: number;
+  childName: string;
+  className: string;
+  date: string;
+  time: string;
+  kind: string;
+  severity: string;
+  description: string;
+  handling: string;
+  mediaKey: string | null;
+  recordedName: string;
+  acknowledgedBy: number | null;
+  acknowledgedAt: string;
+};
+type HealthPoint = {
+  date: string;
+  heightCm: number | null;
+  weightKg: number | null;
+  bmi: number | null;
+  note: string;
+};
+type HealthChild = {
+  childId: number;
+  name: string;
+  className: string;
+  birthDate: string;
+  history: HealthPoint[];
+  latest: HealthPoint | null;
+};
+type MenuDay = {
+  weekday: number;
+  label: string;
+  date: string;
+  breakfast: string;
+  lunch: string;
+  snack: string;
+  note: string;
+};
+type MenuWarning = {
+  childId: number;
+  childName: string;
+  className: string;
+  weekday: number;
+  dayLabel: string;
+  meal: string;
+  dish: string;
+  allergens: string[];
+};
+
+function mediaUrl(key: string) {
+  return `/api/media?key=${encodeURIComponent(key)}`;
+}
+
+/** Nhật ký lớp: cô đăng bài kèm ảnh và gắn thẻ những bé có trong ảnh. */
 function Journal({ ping }: { ping: (s: string) => void }) {
+  const [items, setItems] = useState<PostRow[]>([]),
+    [categories, setCategories] = useState<string[]>([]),
+    [children, setChildren] = useState<Child[]>([]),
+    [classes, setClasses] = useState<ClassOption[]>([]),
+    [open, setOpen] = useState(false),
+    [me, setMe] = useState<number | null>(null),
+    [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    let live = true;
+    Promise.all([
+      fetch("/api/posts").then((r) => (r.ok ? r.json() : { posts: [] })),
+      fetch("/api/children").then((r) => (r.ok ? r.json() : { children: [] })),
+      fetch("/api/auth").then((r) => (r.ok ? r.json() : null)),
+    ])
+      .then(([p, c, a]) => {
+        if (!live) return;
+        setItems(p.posts || []);
+        setCategories(p.categories || []);
+        setChildren(c.children || []);
+        setClasses(c.classes || []);
+        setMe(a?.user?.id ?? null);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [tick]);
+
+  async function remove(id: number) {
+    if (!confirm("Xóa bài viết này cùng toàn bộ ảnh?")) return;
+    const r = await fetch(`/api/posts?id=${id}`, { method: "DELETE" }),
+      d = await r.json();
+    if (!r.ok) {
+      ping(d.error || "Không xóa được bài");
+      return;
+    }
+    ping("Đã xóa bài viết");
+    setTick((t) => t + 1);
+  }
+
   return (
     <>
       <PageHead
         icon="✎"
         title="Nhật ký lớp"
-        sub="Chia sẻ hoạt động và sự tiến bộ của trẻ"
-        action="Tạo bài viết"
-        onClick={() => ping("Đã mở trình soạn nhật ký")}
+        sub="Đăng ảnh và hoạt động — phụ huynh chỉ thấy ảnh có con mình"
+        action="Viết bài"
+        onClick={() => setOpen(true)}
       />
-      <section className="grid">
-        <div className="panel journal-card">
-          <div className="journal-art">🌱 🌼 🦋</div>
-          <small>09:05 · HOẠT ĐỘNG HỌC</small>
-          <h2>Khám phá thế giới thực vật</h2>
-          <p>
-            Các con tự tay gieo hạt, tưới cây và cùng tìm hiểu điều kiện để cây
-            lớn lên.
-          </p>
-          <footer>
-            <span>📷 12 ảnh</span>
-            <span>👁 26 phụ huynh đã xem</span>
-          </footer>
-        </div>
-        <div className="panel">
-          <Title title="Gợi ý ghi nhận" sub="Theo mục tiêu phát triển" />
-          {[
-            "Thể chất",
-            "Nhận thức",
-            "Ngôn ngữ",
-            "Tình cảm – xã hội",
-            "Thẩm mỹ",
-          ].map((x, i) => (
-            <div className="classline" key={x}>
+      <div className="journal-list">
+        {items.map((x) => (
+          <article className="panel journal-post" key={x.id}>
+            <header>
               <div>
-                <b>{x}</b>
                 <small>
-                  {
-                    [
-                      "Vận động khéo léo",
-                      "Biết quan sát và đặt câu hỏi",
-                      "Mạnh dạn trình bày",
-                      "Hợp tác cùng bạn",
-                      "Sáng tạo với màu sắc",
-                    ][i]
-                  }
+                  {x.category} · {x.date} · {x.authorName}
                 </small>
+                <h2>{x.title}</h2>
               </div>
-              <button onClick={() => ping(`Đã chọn ${x}`)}>＋</button>
-            </div>
-          ))}
-        </div>
-      </section>
+              {me === x.authorId && (
+                <button className="linkbtn" onClick={() => remove(x.id)}>
+                  Xóa
+                </button>
+              )}
+            </header>
+            {x.content && <p>{x.content}</p>}
+            {x.media.length > 0 && (
+              <div className="photo-grid">
+                {x.media.map((m) => (
+                  <a
+                    key={m.key}
+                    href={mediaUrl(m.key)}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <img src={mediaUrl(m.key)} alt={x.title} loading="lazy" />
+                  </a>
+                ))}
+              </div>
+            )}
+            <footer>
+              <span>📷 {x.media.length} ảnh</span>
+              <span>
+                {x.taggedCount
+                  ? `🏷 ${x.children.map((c) => c.name).join(", ") || `${x.taggedCount} bé`}`
+                  : "🏷 Bài chung cả lớp"}
+              </span>
+            </footer>
+          </article>
+        ))}
+        {!items.length && (
+          <div className="panel empty">
+            Chưa có bài viết nào. Bấm “Viết bài” để chia sẻ hoạt động hôm nay.
+          </div>
+        )}
+      </div>
+      {open && (
+        <PostComposer
+          categories={categories}
+          classes={classes}
+          childList={children}
+          ping={ping}
+          close={() => setOpen(false)}
+          done={() => {
+            setOpen(false);
+            setTick((t) => t + 1);
+            ping("Đã đăng bài lên nhật ký lớp");
+          }}
+        />
+      )}
     </>
   );
 }
-function Menu({ ping }: { ping: (s: string) => void }) {
+
+function PostComposer({
+  categories,
+  classes,
+  childList,
+  ping,
+  close,
+  done,
+}: {
+  categories: string[];
+  classes: ClassOption[];
+  childList: Child[];
+  ping: (s: string) => void;
+  close: () => void;
+  done: () => void;
+}) {
+  const [media, setMedia] = useState<MediaRef[]>([]),
+    [tagged, setTagged] = useState<number[]>([]),
+    [busy, setBusy] = useState(false),
+    [uploading, setUploading] = useState(false),
+    [error, setError] = useState("");
+
+  async function upload(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files || []);
+    e.target.value = "";
+    if (!files.length) return;
+    setUploading(true);
+    setError("");
+    const form = new FormData();
+    for (const file of files) form.append("file", file);
+    const r = await fetch("/api/media", { method: "POST", body: form }),
+      d = await r.json();
+    setUploading(false);
+    if (!r.ok) {
+      setError(d.error || "Không tải được ảnh");
+      return;
+    }
+    setMedia((s) => [...s, ...d.media].slice(0, 12));
+    ping(`Đã tải lên ${d.media.length} ảnh`);
+  }
+
+  async function submit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError("");
+    setBusy(true);
+    const f = new FormData(e.currentTarget);
+    const r = await fetch("/api/posts", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          title: String(f.get("title")),
+          content: String(f.get("content") || ""),
+          category: String(f.get("category")),
+          date: String(f.get("date")),
+          classId: Number(f.get("classId")) || null,
+          childIds: tagged,
+          media,
+        }),
+      }),
+      d = await r.json();
+    setBusy(false);
+    if (!r.ok) {
+      setError(d.error || "Chưa đăng được bài");
+      return;
+    }
+    done();
+  }
+
+  return (
+    <div className="back">
+      <form className="modal wide" onSubmit={submit}>
+        <button type="button" className="x" onClick={close}>
+          ×
+        </button>
+        <i className="big">
+          <ChibiIcon icon="✎" />
+        </i>
+        <h2>Viết nhật ký lớp</h2>
+        <p>Gắn thẻ bé nào có trong ảnh để đúng phụ huynh đó nhìn thấy.</p>
+        <label>
+          Tiêu đề
+          <input name="title" required placeholder="Ví dụ: Khám phá vườn rau" />
+        </label>
+        <div className="row">
+          <label>
+            Chủ đề
+            <select name="category">
+              {categories.map((x) => (
+                <option key={x}>{x}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Ngày
+            <input type="date" name="date" defaultValue={vnToday()} max={vnToday()} />
+          </label>
+        </div>
+        {classes.length > 0 && (
+          <label>
+            Lớp
+            <select name="classId">
+              <option value="">Toàn trường</option>
+              {classes.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        <label>
+          Nội dung
+          <textarea name="content" rows={4} placeholder="Hôm nay các con…" />
+        </label>
+        <label className="upload-label">
+          Ảnh ({media.length}/12)
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            multiple
+            onChange={upload}
+            disabled={uploading || media.length >= 12}
+          />
+        </label>
+        {uploading && <p className="daybar-note">Đang tải ảnh lên…</p>}
+        {media.length > 0 && (
+          <div className="upload-preview">
+            {media.map((m) => (
+              <div key={m.key}>
+                <img src={mediaUrl(m.key)} alt="Ảnh đã tải lên" />
+                <button
+                  type="button"
+                  onClick={() =>
+                    setMedia((s) => s.filter((x) => x.key !== m.key))
+                  }
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="tag-picker">
+          <b>Gắn thẻ bé có trong bài</b>
+          <small>
+            Không chọn ai nghĩa là bài chung, mọi phụ huynh trong lớp đều xem
+            được.
+          </small>
+          <div>
+            {childList.map((c) => (
+              <button
+                type="button"
+                key={c.id}
+                className={tagged.includes(c.id!) ? "on" : ""}
+                onClick={() =>
+                  setTagged((s) =>
+                    s.includes(c.id!)
+                      ? s.filter((x) => x !== c.id)
+                      : [...s, c.id!],
+                  )
+                }
+              >
+                {c.name}
+              </button>
+            ))}
+          </div>
+        </div>
+        {error && <p className="form-error">{error}</p>}
+        <button className="save" disabled={busy || uploading}>
+          {busy ? "Đang đăng…" : "Đăng bài"}
+        </button>
+      </form>
+    </div>
+  );
+}
+
+/** Hội thoại phụ huynh – giáo viên, dùng chung cho cả hai vai trò. */
+function Messages({
+  ping,
+  parentView = false,
+}: {
+  ping: (s: string) => void;
+  parentView?: boolean;
+}) {
+  const [threads, setThreads] = useState<ThreadRow[]>([]),
+    [list, setList] = useState<MessageRow[]>([]),
+    [childId, setChildId] = useState<number | null>(null),
+    [office, setOffice] = useState({ from: "07:00", to: "17:30" }),
+    [draft, setDraft] = useState(""),
+    [busy, setBusy] = useState(false),
+    [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    let live = true;
+    const query = childId ? `?childId=${childId}` : "";
+    fetch(`/api/messages${query}`)
+      .then((r) => (r.ok ? r.json() : { threads: [], messages: [] }))
+      .then((d) => {
+        if (!live) return;
+        setThreads(d.threads || []);
+        setList(d.messages || []);
+        if (d.officeHours) setOffice(d.officeHours);
+        if (d.childId && d.childId !== childId) setChildId(d.childId);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [childId, tick]);
+
+  const now = vnNow();
+  const offHours = now < office.from || now > office.to;
+  const current = threads.find((x) => x.childId === childId);
+
+  async function send(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!draft.trim() || !childId) return;
+    setBusy(true);
+    const r = await fetch("/api/messages", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ childId, body: draft }),
+      }),
+      d = await r.json();
+    setBusy(false);
+    if (!r.ok) {
+      ping(d.error || "Chưa gửi được tin nhắn");
+      return;
+    }
+    setDraft("");
+    setTick((t) => t + 1);
+  }
+
   return (
     <>
       <PageHead
-        icon="🍲"
-        title="Thực đơn tuần"
-        sub="Tuần 4 · 17/08 – 21/08/2026"
-        action="Cập nhật"
-        onClick={() => ping("Đã mở chỉnh sửa thực đơn")}
+        icon="💬"
+        title="Tin nhắn"
+        sub={
+          parentView
+            ? "Trao đổi riêng với giáo viên chủ nhiệm của con"
+            : "Trao đổi riêng với phụ huynh từng bé"
+        }
       />
-      <div className="menu-week">
-        {["Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu"].map((d, i) => (
-          <article className={i == 4 ? "today" : ""} key={d}>
-            <header>
-              <b>{d}</b>
-              <small>{17 + i}/08</small>
-            </header>
-            <div>
-              <i>🥣</i>
-              <small>BỮA SÁNG</small>
-              <p>{i % 2 ? "Bún thịt rau củ" : "Cháo thịt bằm"}</p>
+      {!threads.length ? (
+        <div className="empty">
+          {parentView
+            ? "Tài khoản chưa được liên kết với hồ sơ trẻ."
+            : "Chưa có hồ sơ trẻ trong lớp bạn phụ trách."}
+        </div>
+      ) : (
+        <div className="chat-layout">
+          <div className="panel chat-threads">
+            <Title title="Hội thoại" sub={`${threads.length} bé`} />
+            {threads.map((t) => (
+              <button
+                key={t.childId}
+                className={`thread${t.childId === childId ? " on" : ""}`}
+                onClick={() => setChildId(t.childId)}
+              >
+                <i>
+                  <ChibiIcon icon="🧒" />
+                </i>
+                <div>
+                  <b>{t.name}</b>
+                  <small>{t.lastBody || "Chưa có tin nhắn"}</small>
+                </div>
+                {t.unread > 0 && <em>{t.unread}</em>}
+              </button>
+            ))}
+          </div>
+          <div className="panel chat-box">
+            <Title
+              title={current ? current.name : "Hội thoại"}
+              sub={current?.className || ""}
+            />
+            <div className="chat-log">
+              {list.map((m) => (
+                <div className={`bubble${m.mine ? " mine" : ""}`} key={m.id}>
+                  <small>
+                    {m.senderName}
+                    {m.senderRole === "parent" ? " · phụ huynh" : " · giáo viên"}
+                  </small>
+                  <p>{m.body}</p>
+                  <time>{m.createdAt}</time>
+                </div>
+              ))}
+              {!list.length && (
+                <div className="empty">
+                  Chưa có tin nhắn nào. Hãy gửi lời chào đầu tiên.
+                </div>
+              )}
             </div>
-            <div>
-              <i>
-                <ChibiIcon icon="🍱" />
-              </i>
-              <small>BỮA TRƯA</small>
-              <p>
-                Cơm · Cá sốt cà
-                <br />
-                Canh rau ngót
+            {parentView && offHours && (
+              <p className="daybar-note">
+                Ngoài giờ làm việc ({office.from}–{office.to}). Tin vẫn được gửi,
+                cô sẽ trả lời vào sáng mai.
               </p>
-            </div>
+            )}
+            <form className="chat-send" onSubmit={send}>
+              <input
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                placeholder="Nhập tin nhắn…"
+                maxLength={2000}
+              />
+              <button className="save" disabled={busy || !draft.trim()}>
+                Gửi
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+
+/** Ghi nhận sự cố và y tế: gửi ngay cho phụ huynh, có xác nhận đã đọc. */
+function Incidents({ ping }: { ping: (s: string) => void }) {
+  const [rows, setRows] = useState<IncidentRow[]>([]),
+    [children, setChildren] = useState<Child[]>([]),
+    [kinds, setKinds] = useState<string[]>([]),
+    [severities, setSeverities] = useState<string[]>([]),
+    [today, setToday] = useState(vnToday()),
+    [open, setOpen] = useState(false),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState(""),
+    [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    let live = true;
+    Promise.all([
+      fetch("/api/incidents").then((r) => (r.ok ? r.json() : { incidents: [] })),
+      fetch("/api/children").then((r) => (r.ok ? r.json() : { children: [] })),
+    ])
+      .then(([i, c]) => {
+        if (!live) return;
+        setRows(i.incidents || []);
+        setKinds(i.kinds || []);
+        setSeverities(i.severities || []);
+        if (i.today) setToday(i.today);
+        setChildren(c.children || []);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [tick]);
+
+  async function submit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError("");
+    setBusy(true);
+    const f = new FormData(e.currentTarget);
+    const r = await fetch("/api/incidents", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          childId: Number(f.get("childId")),
+          date: String(f.get("date")),
+          time: String(f.get("time")),
+          kind: String(f.get("kind")),
+          severity: String(f.get("severity")),
+          description: String(f.get("description")),
+          handling: String(f.get("handling") || ""),
+        }),
+      }),
+      d = await r.json();
+    setBusy(false);
+    if (!r.ok) {
+      setError(d.error || "Chưa ghi nhận được");
+      return;
+    }
+    setOpen(false);
+    setTick((t) => t + 1);
+    ping("Đã gửi tới phụ huynh, chờ xác nhận");
+  }
+
+  const waiting = rows.filter((x) => !x.acknowledgedBy).length;
+  return (
+    <>
+      <div className="care-head">
+        <div>
+          <b>Sự cố · y tế</b>
+          <small>
+            {rows.length} bản ghi ·{" "}
+            {waiting ? `${waiting} chờ phụ huynh xác nhận` : "đã xác nhận hết"}
+          </small>
+        </div>
+        <button className="pill-action" onClick={() => setOpen(true)}>
+          ＋ Ghi nhận
+        </button>
+      </div>
+      <div className="panel">
+        {rows.map((x) => (
+          <article className={`incident sev-${x.severity === "Khẩn" ? "high" : x.severity === "Cần theo dõi" ? "mid" : "low"}`} key={x.id}>
             <div>
-              <i>🥛</i>
-              <small>BỮA XẾ</small>
-              <p>Sữa chua · Trái cây</p>
+              <b>
+                {x.childName} · {x.kind}
+              </b>
+              <small>
+                {x.date} {x.time} · {x.className} · {x.severity}
+                {x.recordedName ? ` · ${x.recordedName}` : ""}
+              </small>
+              <p>{x.description}</p>
+              {x.handling && <p className="handling">Xử lý: {x.handling}</p>}
             </div>
+            <span className={x.acknowledgedBy ? "leave-status ok" : "leave-status wait"}>
+              {x.acknowledgedBy ? "PH đã xác nhận" : "Chờ xác nhận"}
+            </span>
+          </article>
+        ))}
+        {!rows.length && (
+          <div className="empty">Chưa có sự cố nào được ghi nhận.</div>
+        )}
+      </div>
+      {open && (
+        <div className="back">
+          <form className="modal" onSubmit={submit}>
+            <button type="button" className="x" onClick={() => setOpen(false)}>
+              ×
+            </button>
+            <i className="big">
+              <ChibiIcon icon="💗" />
+            </i>
+            <h2>Ghi nhận sự cố</h2>
+            <p>Phụ huynh nhận được ngay và phải bấm xác nhận đã đọc.</p>
+            <label>
+              Bé
+              <select name="childId" required>
+                {children.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} · {c.className}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="row">
+              <label>
+                Ngày
+                <input type="date" name="date" defaultValue={today} max={today} />
+              </label>
+              <label>
+                Giờ
+                <input type="time" name="time" defaultValue={vnNow()} />
+              </label>
+            </div>
+            <div className="row">
+              <label>
+                Sự việc
+                <select name="kind">
+                  {kinds.map((x) => (
+                    <option key={x}>{x}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Mức độ
+                <select name="severity">
+                  {severities.map((x) => (
+                    <option key={x}>{x}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <label>
+              Diễn biến
+              <textarea name="description" rows={3} required placeholder="Con sốt 38.2 độ lúc 10h…" />
+            </label>
+            <label>
+              Nhà trường đã xử lý
+              <textarea name="handling" rows={2} placeholder="Chườm mát, cho uống nước, theo dõi 30 phút…" />
+            </label>
+            {error && <p className="form-error">{error}</p>}
+            <button className="save" disabled={busy}>
+              {busy ? "Đang gửi…" : "Gửi cho phụ huynh"}
+            </button>
+          </form>
+        </div>
+      )}
+    </>
+  );
+}
+
+/** Cân đo định kỳ, tự tính BMI để cô thấy ngay bé nào cần lưu ý. */
+function HealthBoard({ ping }: { ping: (s: string) => void }) {
+  const [date, setDate] = useState(vnToday()),
+    [today, setToday] = useState(vnToday()),
+    [classId, setClassId] = useState(""),
+    [classes, setClasses] = useState<ClassOption[]>([]),
+    [scope, setScope] = useState(""),
+    [rows, setRows] = useState<HealthChild[]>([]),
+    [draft, setDraft] = useState<Record<number, { heightCm: string; weightKg: string; note: string }>>({}),
+    [saving, setSaving] = useState(false),
+    [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    let live = true;
+    const query = new URLSearchParams();
+    if (classId !== "") query.set("classId", classId);
+    fetch(`/api/health?${query}`)
+      .then((r) => (r.ok ? r.json() : { children: [] }))
+      .then((d) => {
+        if (!live) return;
+        setRows(d.children || []);
+        setClasses(d.classes || []);
+        setScope(d.scope || "");
+        if (d.today) setToday(d.today);
+        setDraft(
+          Object.fromEntries(
+            (d.children || []).map((c: HealthChild) => {
+              const onDate = c.history.find((h) => h.date === date);
+              return [
+                c.childId,
+                {
+                  heightCm: onDate?.heightCm ? String(onDate.heightCm) : "",
+                  weightKg: onDate?.weightKg ? String(onDate.weightKg) : "",
+                  note: onDate?.note || "",
+                },
+              ];
+            }),
+          ),
+        );
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [classId, date, tick]);
+
+  const edit = (id: number, field: string, value: string) =>
+    setDraft((s) => ({
+      ...s,
+      [id]: { ...(s[id] || { heightCm: "", weightKg: "", note: "" }), [field]: value },
+    }));
+
+  async function save() {
+    setSaving(true);
+    const r = await fetch("/api/health", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          date,
+          items: rows.map((c) => ({
+            childId: c.childId,
+            heightCm: Number(draft[c.childId]?.heightCm) || 0,
+            weightKg: Number(draft[c.childId]?.weightKg) || 0,
+            note: draft[c.childId]?.note || "",
+          })),
+        }),
+      }),
+      d = await r.json();
+    setSaving(false);
+    if (!r.ok) {
+      ping(d.error || "Chưa lưu được số đo");
+      return;
+    }
+    ping(`Đã lưu cân đo ${d.saved} trẻ`);
+    setTick((t) => t + 1);
+  }
+
+  return (
+    <>
+      <DayBar
+        date={date}
+        setDate={setDate}
+        today={today}
+        classes={classes}
+        classId={classId}
+        setClassId={setClassId}
+        scope={scope}
+      />
+      <div className="panel tablewrap health-table">
+        <table>
+          <thead>
+            <tr>
+              <th>TRẺ</th>
+              <th>CAO (CM)</th>
+              <th>NẶNG (KG)</th>
+              <th>BMI GẦN NHẤT</th>
+              <th>GHI CHÚ</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((c) => (
+              <tr key={c.childId}>
+                <td>
+                  <div className="person">
+                    <i>
+                      <ChibiIcon icon="🧒" />
+                    </i>
+                    <div>
+                      <b>{c.name}</b>
+                      <small>{c.className}</small>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <input
+                    inputMode="decimal"
+                    value={draft[c.childId]?.heightCm || ""}
+                    onChange={(e) => edit(c.childId, "heightCm", e.target.value)}
+                    placeholder="—"
+                  />
+                </td>
+                <td>
+                  <input
+                    inputMode="decimal"
+                    value={draft[c.childId]?.weightKg || ""}
+                    onChange={(e) => edit(c.childId, "weightKg", e.target.value)}
+                    placeholder="—"
+                  />
+                </td>
+                <td>
+                  {c.latest?.bmi ? (
+                    <span className="bmi">
+                      {c.latest.bmi}
+                      <small>{c.latest.date}</small>
+                    </span>
+                  ) : (
+                    <small className="muted-cell">chưa có</small>
+                  )}
+                </td>
+                <td>
+                  <input
+                    value={draft[c.childId]?.note || ""}
+                    onChange={(e) => edit(c.childId, "note", e.target.value)}
+                    placeholder="Ghi chú…"
+                  />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {rows.length > 0 && (
+          <button className="save finish" onClick={save} disabled={saving}>
+            {saving ? "Đang lưu…" : `Lưu cân đo ngày ${date}`}
+          </button>
+        )}
+      </div>
+      {!rows.length && <div className="empty">Chưa có hồ sơ trẻ.</div>}
+    </>
+  );
+}
+
+/** Thực đơn tuần: nhà trường nhập, giáo viên và phụ huynh xem kèm cảnh báo dị ứng. */
+function MenuBoard({
+  ping,
+  editable = false,
+}: {
+  ping: (s: string) => void;
+  editable?: boolean;
+}) {
+  const [week, setWeek] = useState(weekStartOf(vnToday())),
+    [days, setDays] = useState<MenuDay[]>([]),
+    [warnings, setWarnings] = useState<MenuWarning[]>([]),
+    [canEdit, setCanEdit] = useState(false),
+    [nav, setNav] = useState({ prev: "", next: "" }),
+    [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let live = true;
+    fetch(`/api/menus?week=${week}`)
+      .then((r) => (r.ok ? r.json() : { days: [] }))
+      .then((d) => {
+        if (!live) return;
+        setDays(d.days || []);
+        setWarnings(d.warnings || []);
+        setCanEdit(Boolean(d.canEdit));
+        setNav({ prev: d.prevWeek, next: d.nextWeek });
+        if (d.weekStart && d.weekStart !== week) setWeek(d.weekStart);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [week]);
+
+  const edit = (weekday: number, field: keyof MenuDay, value: string) =>
+    setDays((s) =>
+      s.map((d) => (d.weekday === weekday ? { ...d, [field]: value } : d)),
+    );
+
+  async function save() {
+    setSaving(true);
+    const r = await fetch("/api/menus", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ weekStart: week, days }),
+      }),
+      d = await r.json();
+    setSaving(false);
+    if (!r.ok) {
+      ping(d.error || "Chưa lưu được thực đơn");
+      return;
+    }
+    ping("Đã cập nhật thực đơn tuần");
+  }
+
+  const writable = editable && canEdit;
+  const hitFor = (weekday: number, meal: string) =>
+    warnings.filter((w) => w.weekday === weekday && w.meal === meal);
+
+  return (
+    <>
+      <div className="daybar">
+        <button className="ghost" onClick={() => setWeek(nav.prev)}>
+          ← Tuần trước
+        </button>
+        <label>
+          Tuần bắt đầu
+          <input
+            type="date"
+            value={week}
+            onChange={(e) => e.target.value && setWeek(e.target.value)}
+          />
+        </label>
+        <button className="ghost" onClick={() => setWeek(nav.next)}>
+          Tuần sau →
+        </button>
+      </div>
+      <div className="menu-week">
+        {days.map((d) => (
+          <article key={d.weekday}>
+            <header>
+              <b>{d.label}</b>
+              <small>{d.date.slice(8)}/{d.date.slice(5, 7)}</small>
+            </header>
+            {(
+              [
+                ["breakfast", "BỮA SÁNG", "🥣", "bữa sáng"],
+                ["lunch", "BỮA TRƯA", "🍱", "bữa trưa"],
+                ["snack", "BỮA XẾ", "🥛", "bữa xế"],
+              ] as [keyof MenuDay, string, string, string][]
+            ).map(([field, label, icon, mealKey]) => {
+              const hits = hitFor(d.weekday, mealKey);
+              return (
+                <div className={hits.length ? "meal-warn" : ""} key={field}>
+                  <i>
+                    <ChibiIcon icon={icon} />
+                  </i>
+                  <small>{label}</small>
+                  {writable ? (
+                    <textarea
+                      rows={2}
+                      value={String(d[field] ?? "")}
+                      onChange={(e) => edit(d.weekday, field, e.target.value)}
+                      placeholder="Nhập món…"
+                    />
+                  ) : (
+                    <p>{String(d[field] ?? "") || "Chưa cập nhật"}</p>
+                  )}
+                  {hits.length > 0 && (
+                    <b className="warn-flag">
+                      ⚠ {hits.map((h) => h.childName).join(", ")} dị ứng{" "}
+                      {[...new Set(hits.flatMap((h) => h.allergens))].join(", ")}
+                    </b>
+                  )}
+                </div>
+              );
+            })}
           </article>
         ))}
       </div>
-      <div className="nutrition panel">
-        <b>🧑🏻‍🍳 Dinh dưỡng tuần</b>
-        <span>
-          Năng lượng trung bình: <strong>690 kcal/ngày</strong>
-        </span>
-        <span>
-          Đạm: <strong>32g</strong>
-        </span>
-        <span>
-          Rau củ: <strong>180g</strong>
-        </span>
-        <button onClick={() => ping("Đã mở danh sách trẻ dị ứng")}>
-          Xem lưu ý dị ứng
+      {writable && (
+        <button className="save finish" onClick={save} disabled={saving}>
+          {saving ? "Đang lưu…" : "Lưu thực đơn tuần"}
         </button>
+      )}
+      {!writable && warnings.length > 0 && (
+        <div className="panel">
+          <Title
+            title="Cảnh báo dị ứng tuần này"
+            sub={`${warnings.length} món cần đổi hoặc chuẩn bị suất riêng`}
+          />
+          {warnings.map((w, i) => (
+            <div className="leave-line" key={`${w.childId}-${w.weekday}-${w.meal}-${i}`}>
+              <div>
+                <b>
+                  {w.childName} · {w.dayLabel} · {w.meal}
+                </b>
+                <small>
+                  {w.dish} — dị ứng {w.allergens.join(", ")}
+                </small>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {!warnings.length && !writable && (
+        <p className="daybar-note saved-note">
+          Không có món nào trùng với danh sách dị ứng của các bé trong tuần này.
+        </p>
+      )}
+    </>
+  );
+}
+
+const CARE_TABS = [
+  ["daily", "🍚 Sổ hằng ngày"],
+  ["incident", "💗 Sự cố · y tế"],
+  ["health", "📊 Cân đo"],
+  ["menu", "🍲 Thực đơn"],
+];
+
+function CareArea({ ping }: { ping: (s: string) => void }) {
+  const [tab, setTab] = useState("daily");
+  return (
+    <>
+      <PageHead
+        icon="♥"
+        title="Sổ chăm sóc"
+        sub="Ăn ngủ, sự cố y tế, cân đo và thực đơn của lớp"
+      />
+      <div className="care-tabs">
+        {CARE_TABS.map(([key, label]) => (
+          <button
+            key={key}
+            className={tab === key ? "on" : ""}
+            onClick={() => setTab(key)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {tab === "daily" && <Care ping={ping} />}
+      {tab === "incident" && <Incidents ping={ping} />}
+      {tab === "health" && <HealthBoard ping={ping} />}
+      {tab === "menu" && <MenuBoard ping={ping} />}
+    </>
+  );
+}
+
+
+/** Album của con: chỉ những bài có gắn thẻ con mình hoặc bài chung của lớp. */
+function ParentJournal() {
+  const [items, setItems] = useState<PostRow[]>([]),
+    [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let live = true;
+    fetch("/api/posts")
+      .then((r) => (r.ok ? r.json() : { posts: [] }))
+      .then((d) => {
+        if (!live) return;
+        setItems(d.posts || []);
+        setLoading(false);
+      })
+      .catch(() => live && setLoading(false));
+    return () => {
+      live = false;
+    };
+  }, []);
+  const photos = items.reduce((sum, x) => sum + x.media.length, 0);
+  return (
+    <>
+      <PageHead
+        icon="✎"
+        title="Nhật ký của con"
+        sub={`${items.length} bài · ${photos} ảnh do cô giáo chia sẻ`}
+      />
+      <div className="journal-list">
+        {items.map((x) => (
+          <article className="panel journal-post" key={x.id}>
+            <header>
+              <div>
+                <small>
+                  {x.category} · {x.date} · {x.authorName}
+                </small>
+                <h2>{x.title}</h2>
+              </div>
+            </header>
+            {x.content && <p>{x.content}</p>}
+            {x.media.length > 0 && (
+              <div className="photo-grid">
+                {x.media.map((m) => (
+                  <a
+                    key={m.key}
+                    href={mediaUrl(m.key)}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <img src={mediaUrl(m.key)} alt={x.title} loading="lazy" />
+                  </a>
+                ))}
+              </div>
+            )}
+            {x.children.length > 0 && (
+              <footer>
+                <span>🏷 Có {x.children.map((c) => c.name).join(", ")}</span>
+              </footer>
+            )}
+          </article>
+        ))}
+        {!loading && !items.length && (
+          <div className="panel empty">
+            Cô giáo chưa đăng bài nào. Ảnh và hoạt động của con sẽ hiện ở đây.
+          </div>
+        )}
       </div>
     </>
   );
 }
+
+/** Biểu đồ tăng trưởng đơn giản, vẽ bằng SVG nên không cần thư viện ngoài. */
+function GrowthChart({
+  points,
+  field,
+  unit,
+  color,
+}: {
+  points: HealthPoint[];
+  field: "heightCm" | "weightKg";
+  unit: string;
+  color: string;
+}) {
+  const data = points.filter((p) => p[field] !== null) as (HealthPoint & {
+    [k: string]: number;
+  })[];
+  if (data.length < 2)
+    return (
+      <p className="chart-empty">
+        Cần ít nhất hai lần đo để vẽ biểu đồ {unit === "cm" ? "chiều cao" : "cân nặng"}.
+      </p>
+    );
+  const values = data.map((p) => Number(p[field]));
+  const min = Math.min(...values),
+    max = Math.max(...values),
+    span = max - min || 1;
+  const w = 280,
+    h = 90,
+    pad = 6;
+  const coords = values.map((v, i) => {
+    const x = pad + (i * (w - pad * 2)) / (values.length - 1);
+    const y = h - pad - ((v - min) / span) * (h - pad * 2);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+  return (
+    <div className="chart">
+      <svg viewBox={`0 0 ${w} ${h}`} role="img" aria-label={`Biểu đồ ${unit}`}>
+        <polyline points={coords.join(" ")} fill="none" stroke={color} strokeWidth="2.5" strokeLinejoin="round" />
+        {coords.map((c, i) => {
+          const [x, y] = c.split(",");
+          return <circle key={i} cx={x} cy={y} r={i === coords.length - 1 ? 4 : 2.5} fill={color} />;
+        })}
+      </svg>
+      <div className="chart-legend">
+        <span>
+          {values[0]} {unit} · {data[0].date}
+        </span>
+        <b>
+          {values[values.length - 1]} {unit}
+        </b>
+      </div>
+    </div>
+  );
+}
+
+function ParentHealth() {
+  const [rows, setRows] = useState<HealthChild[]>([]),
+    [picked, setPicked] = useState<number | null>(null),
+    [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let live = true;
+    fetch("/api/health")
+      .then((r) => (r.ok ? r.json() : { children: [] }))
+      .then((d) => {
+        if (!live) return;
+        setRows(d.children || []);
+        setPicked((d.children || [])[0]?.childId ?? null);
+        setLoading(false);
+      })
+      .catch(() => live && setLoading(false));
+    return () => {
+      live = false;
+    };
+  }, []);
+  const child = rows.find((x) => x.childId === picked) || rows[0] || null;
+  return (
+    <>
+      <PageHead
+        icon="💗"
+        title="Sổ sức khỏe"
+        sub="Chiều cao, cân nặng và BMI theo từng lần cân đo ở trường"
+      />
+      {rows.length > 1 && (
+        <div className="child-switch">
+          {rows.map((x) => (
+            <button
+              key={x.childId}
+              className={x.childId === child?.childId ? "on" : ""}
+              onClick={() => setPicked(x.childId)}
+            >
+              <ChibiIcon icon="🧒" />
+              {x.name}
+            </button>
+          ))}
+        </div>
+      )}
+      {child && (
+        <>
+          <div className="today-list">
+            <div className="today-item">
+              <i>
+                <ChibiIcon icon="🧒" />
+              </i>
+              <div>
+                <small>CHIỀU CAO</small>
+                <b>{child.latest?.heightCm ? `${child.latest.heightCm} cm` : "Chưa đo"}</b>
+              </div>
+            </div>
+            <div className="today-item">
+              <i>
+                <ChibiIcon icon="📊" />
+              </i>
+              <div>
+                <small>CÂN NẶNG</small>
+                <b>{child.latest?.weightKg ? `${child.latest.weightKg} kg` : "Chưa đo"}</b>
+              </div>
+            </div>
+            <div className="today-item">
+              <i>
+                <ChibiIcon icon="💗" />
+              </i>
+              <div>
+                <small>BMI</small>
+                <b>{child.latest?.bmi ?? "Chưa có"}</b>
+              </div>
+            </div>
+          </div>
+          <div className="grid">
+            <div className="panel">
+              <Title title="Chiều cao" sub={`${child.history.length} lần đo`} />
+              <GrowthChart points={child.history} field="heightCm" unit="cm" color="#2f7d6b" />
+            </div>
+            <div className="panel">
+              <Title title="Cân nặng" sub={`${child.history.length} lần đo`} />
+              <GrowthChart points={child.history} field="weightKg" unit="kg" color="#d9846f" />
+            </div>
+          </div>
+          <div className="panel tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>NGÀY</th>
+                  <th>CHIỀU CAO</th>
+                  <th>CÂN NẶNG</th>
+                  <th>BMI</th>
+                  <th>GHI CHÚ</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...child.history].reverse().map((h) => (
+                  <tr key={h.date}>
+                    <td>{h.date}</td>
+                    <td>{h.heightCm ? `${h.heightCm} cm` : "—"}</td>
+                    <td>{h.weightKg ? `${h.weightKg} kg` : "—"}</td>
+                    <td>{h.bmi ?? "—"}</td>
+                    <td>{h.note || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {!child.history.length && (
+              <div className="empty">Trường chưa nhập lần cân đo nào.</div>
+            )}
+          </div>
+        </>
+      )}
+      {!loading && !rows.length && (
+        <div className="empty">Tài khoản chưa được liên kết với hồ sơ trẻ.</div>
+      )}
+    </>
+  );
+}
+
+type NoticeRow = {
+  id: number;
+  title: string;
+  content: string;
+  audience: string;
+  classId: number | null;
+  requiresAck: boolean;
+  authorName: string;
+  read: boolean;
+  readCount: number;
+  createdAt: string;
+};
+
 function Notices({ ping }: { ping: (s: string) => void }) {
   const [open, setOpen] = useState(false),
-    [items, setItems] = useState<
-      {
-        id: number;
-        title: string;
-        content: string;
-        audience: string;
-        createdAt: string;
-      }[]
-    >([]);
-  const load = () =>
-    fetch("/api/announcements")
-      .then((r) => r.json())
-      .then((d) => setItems(d.announcements || []));
+    [items, setItems] = useState<NoticeRow[]>([]),
+    [classes, setClasses] = useState<ClassOption[]>([]),
+    [error, setError] = useState(""),
+    [busy, setBusy] = useState(false),
+    [tick, setTick] = useState(0);
+
   useEffect(() => {
-    load();
-  }, []);
+    let live = true;
+    Promise.all([
+      fetch("/api/announcements").then((r) =>
+        r.ok ? r.json() : { announcements: [] },
+      ),
+      fetch("/api/children").then((r) => (r.ok ? r.json() : { classes: [] })),
+    ])
+      .then(([a, c]) => {
+        if (!live) return;
+        setItems(a.announcements || []);
+        setClasses(c.classes || []);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [tick]);
+
   async function send(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const f = new FormData(e.currentTarget),
-      x = {
-        title: String(f.get("title")),
-        content: String(f.get("content")),
-        audience: String(f.get("audience")),
-      };
+    setError("");
+    setBusy(true);
+    const f = new FormData(e.currentTarget);
+    const classId = Number(f.get("classId")) || null;
     const r = await fetch("/api/announcements", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(x),
+        body: JSON.stringify({
+          title: String(f.get("title")),
+          content: String(f.get("content")),
+          classId,
+          audience: classId
+            ? `Phụ huynh lớp ${classes.find((c) => c.id === classId)?.name || ""}`.trim()
+            : "Toàn trường",
+          requiresAck: f.get("requiresAck") === "on",
+        }),
       }),
       d = await r.json();
+    setBusy(false);
     if (!r.ok) {
-      ping(d.error || "Không thể gửi thông báo");
+      setError(d.error || "Không thể gửi thông báo");
       return;
     }
-    await load();
     setOpen(false);
-    ping("Đã gửi thông báo tới phụ huynh");
+    setTick((t) => t + 1);
+    ping("Đã gửi thông báo đúng nhóm phụ huynh");
   }
+
   return (
     <>
       <PageHead
         icon="📣"
         title="Thông báo"
-        sub="Kết nối nhà trường với phụ huynh"
+        sub="Chọn đúng lớp nhận và theo dõi ai đã đọc"
         action="Soạn thông báo"
         onClick={() => setOpen(true)}
       />
@@ -3131,12 +4391,13 @@ function Notices({ ping }: { ping: (s: string) => void }) {
               </i>
               <section>
                 <small>
-                  {x.audience} · {x.createdAt}
+                  {x.audience} · {x.createdAt} · {x.authorName}
                 </small>
                 <h2>{x.title}</h2>
                 <p>{x.content}</p>
                 <footer>
-                  <span>✓ Đã lưu trong hệ thống</span>
+                  <span>👁 {x.readCount} phụ huynh đã đọc</span>
+                  {x.requiresAck && <span>✓ Cần xác nhận</span>}
                 </footer>
               </section>
             </article>
@@ -3146,14 +4407,23 @@ function Notices({ ping }: { ping: (s: string) => void }) {
           )}
         </div>
         <div className="panel">
-          <Title title="Kênh gửi" sub="Trạng thái kết nối" />
+          <Title title="Nơi nhận" sub="Thông báo chỉ đến đúng lớp được chọn" />
           <div className="channel">
             <i className="green">✓</i>
             <div>
-              <b>Thông báo trong hệ thống</b>
-              <small>Đang hoạt động</small>
+              <b>Toàn trường</b>
+              <small>Mọi phụ huynh trong trường đều nhận</small>
             </div>
           </div>
+          {classes.map((c) => (
+            <div className="channel" key={c.id}>
+              <i className="green">✓</i>
+              <div>
+                <b>Lớp {c.name}</b>
+                <small>Chỉ phụ huynh lớp này nhận được</small>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
       {open && (
@@ -3166,30 +4436,41 @@ function Notices({ ping }: { ping: (s: string) => void }) {
               <ChibiIcon icon="📣" />
             </i>
             <h2>Soạn thông báo</h2>
-            <p>Gửi thông tin đến đúng nhóm phụ huynh.</p>
+            <p>Chọn lớp nhận để phụ huynh lớp khác không bị làm phiền.</p>
             <label>
               Tiêu đề
               <input name="title" required />
             </label>
             <label>
-              Người nhận
-              <select name="audience">
-                <option>Phụ huynh lớp Lá 1</option>
-                <option>Toàn trường</option>
-                <option>Giáo viên</option>
+              Nơi nhận
+              <select name="classId">
+                <option value="">Toàn trường</option>
+                {classes.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    Phụ huynh lớp {c.name}
+                  </option>
+                ))}
               </select>
             </label>
             <label>
               Nội dung
               <textarea name="content" required rows={5} />
             </label>
-            <button className="save">Gửi thông báo</button>
+            <label className="check-label">
+              <input type="checkbox" name="requiresAck" />
+              Yêu cầu phụ huynh bấm xác nhận đã đọc
+            </label>
+            {error && <p className="form-error">{error}</p>}
+            <button className="save" disabled={busy}>
+              {busy ? "Đang gửi…" : "Gửi thông báo"}
+            </button>
           </form>
         </div>
       )}
     </>
   );
 }
+
 function Teacher({ ping }: { ping: (s: string) => void }) {
   const [children, setChildren] = useState<Child[]>([]),
     [parents, setParents] = useState<ManagedUser[]>([]),
@@ -3336,8 +4617,35 @@ function ParentToday({ ping }: { ping: (s: string) => void }) {
   const [date, setDate] = useState(vnToday()),
     [today, setToday] = useState(vnToday()),
     [children, setChildren] = useState<TodayChild[]>([]),
+    [incidents, setIncidents] = useState<IncidentRow[]>([]),
     [picked, setPicked] = useState<number | null>(null),
-    [loading, setLoading] = useState(true);
+    [loading, setLoading] = useState(true),
+    [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    let live = true;
+    fetch("/api/incidents")
+      .then((r) => (r.ok ? r.json() : { incidents: [] }))
+      .then((d) => live && setIncidents(d.incidents || []))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [tick]);
+
+  async function acknowledge(id: number) {
+    const r = await fetch("/api/incidents", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+    if (!r.ok) {
+      ping("Chưa xác nhận được");
+      return;
+    }
+    setTick((t) => t + 1);
+    ping("Đã xác nhận với nhà trường");
+  }
 
   useEffect(() => {
     let live = true;
@@ -3462,6 +4770,20 @@ function ParentToday({ ping }: { ping: (s: string) => void }) {
               · {child.leave.reason} — {child.leave.status.toLowerCase()}.
             </p>
           )}
+          {incidents
+            .filter((x) => x.childId === child.id && !x.acknowledgedBy)
+            .map((x) => (
+              <div className="panel incident-alert" key={x.id}>
+                <b>
+                  ⚠ {x.kind} · {x.date} {x.time}
+                </b>
+                <p>{x.description}</p>
+                {x.handling && <p className="handling">Nhà trường đã xử lý: {x.handling}</p>}
+                <button className="save" onClick={() => acknowledge(x.id)}>
+                  Tôi đã đọc và nắm được thông tin
+                </button>
+              </div>
+            ))}
           <div className="panel">
             <Title title="Một ngày ở lớp" sub={`Ngày ${date}`} />
             {nothingYet ? (
@@ -3643,41 +4965,71 @@ function ParentLeave({ ping }: { ping: (s: string) => void }) {
 }
 
 function ParentNotices({ ping }: { ping: (s: string) => void }) {
-  const [items, setItems] = useState<
-    {
-      id: number;
-      title: string;
-      content: string;
-      audience: string;
-      createdAt: string;
-    }[]
-  >([]);
+  const [items, setItems] = useState<NoticeRow[]>([]),
+    [tick, setTick] = useState(0);
   useEffect(() => {
+    let live = true;
     fetch("/api/announcements")
       .then((r) => (r.ok ? r.json() : { announcements: [] }))
-      .then((d) => setItems(d.announcements || []))
-      .catch(() => ping("Không tải được thông báo"));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+      .then((d) => live && setItems(d.announcements || []))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [tick]);
+
+  async function markRead(id: number, ack: boolean) {
+    const r = await fetch("/api/announcements", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+    if (!r.ok) {
+      ping("Chưa ghi nhận được");
+      return;
+    }
+    setTick((t) => t + 1);
+    ping(ack ? "Đã xác nhận với nhà trường" : "Đã đánh dấu đã đọc");
+  }
+
+  const unread = items.filter((x) => !x.read).length;
   return (
     <>
       <PageHead
         icon="📣"
         title="Thông báo từ nhà trường"
-        sub="Thông tin do nhà trường và giáo viên gửi"
+        sub={
+          unread
+            ? `${unread} thông báo chưa đọc`
+            : "Bạn đã đọc hết thông báo"
+        }
       />
       <div className="panel">
         {items.map((x) => (
-          <article className="notice" key={x.id}>
+          <article className={`notice${x.read ? "" : " unread"}`} key={x.id}>
             <i>
               <ChibiIcon icon="📣" />
             </i>
             <section>
               <small>
-                {x.audience} · {x.createdAt}
+                {x.audience} · {x.createdAt} · {x.authorName}
               </small>
               <h2>{x.title}</h2>
               <p>{x.content}</p>
+              <footer>
+                {x.read ? (
+                  <span className="leave-status ok">
+                    {x.requiresAck ? "Đã xác nhận" : "Đã đọc"}
+                  </span>
+                ) : (
+                  <button
+                    className="pill-action"
+                    onClick={() => markRead(x.id, x.requiresAck)}
+                  >
+                    {x.requiresAck ? "Tôi đã đọc và đồng ý" : "Đánh dấu đã đọc"}
+                  </button>
+                )}
+              </footer>
             </section>
           </article>
         ))}
@@ -3698,6 +5050,10 @@ function Parent({
 }) {
   if (active === "Xin nghỉ") return <ParentLeave ping={ping} />;
   if (active === "Thông báo") return <ParentNotices ping={ping} />;
+  if (active === "Nhật ký") return <ParentJournal />;
+  if (active === "Tin nhắn") return <Messages ping={ping} parentView />;
+  if (active === "Sức khỏe") return <ParentHealth />;
+  if (active === "Thực đơn") return <MenuBoard ping={ping} />;
   return <ParentToday ping={ping} />;
 }
 

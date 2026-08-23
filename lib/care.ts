@@ -11,3 +11,22 @@ export const LEAVE_REASONS = [
   "Về quê",
   "Lý do khác",
 ];
+export const POST_CATEGORIES = [
+  "Hoạt động học",
+  "Vui chơi",
+  "Bữa ăn",
+  "Dã ngoại",
+  "Sự kiện",
+];
+export const INCIDENT_KINDS = [
+  "Sốt",
+  "Ngã",
+  "Va chạm",
+  "Nôn",
+  "Dị ứng",
+  "Uống thuốc theo đơn",
+  "Khác",
+];
+export const INCIDENT_SEVERITY = ["Nhẹ", "Cần theo dõi", "Khẩn"];
+/** Giờ làm việc của trường: ngoài khung này giao diện báo cô sẽ trả lời sau. */
+export const OFFICE_HOURS = { from: "07:00", to: "17:30" };
