@@ -12,3 +12,124 @@ html,body,button,input,select,textarea{font-family:Arial,Tahoma,"Segoe UI",sans-
 .brand{justify-content:center;padding:0 6px 20px}.brand>img{display:block;width:145px;height:82px;object-fit:contain;border-radius:14px}.auth-brand>img{display:block;width:180px;height:105px;object-fit:contain;border-radius:16px}.mobile-auth-brand>img{display:block;width:150px;height:88px;object-fit:contain;margin:0 auto;border-radius:14px}@media(max-width:800px){.mobile-auth-brand{margin-bottom:16px}}
 .auth-scene{height:auto;margin:128px -4% 0}.auth-scene>img{display:block;width:100%;aspect-ratio:2.28/1;object-fit:cover;border-radius:22px;box-shadow:0 18px 45px #35585120;border:1px solid #ffffffb8}.auth-art h1{margin-top:24px}
 .system-hero{background:linear-gradient(115deg,#315f59,#4d9485);color:#fff;border-radius:22px;padding:25px 28px;display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;box-shadow:0 16px 42px #315f5928}.system-hero small{font-size:8px;font-weight:900;letter-spacing:.12em;color:#c7e9df}.system-hero h1{font-size:25px;margin:5px 0}.system-hero p{font-size:10px;margin:0;color:#d9eee8}.system-hero button{border:0;background:#fff;color:#3b756a;border-radius:11px;padding:11px 15px;font-size:9px;font-weight:900}.system-stats{display:grid;grid-template-columns:repeat(5,1fr);gap:11px;margin-bottom:16px}.system-stats article{background:#fff;border:1px solid var(--line);border-radius:16px;padding:15px;display:flex;gap:10px;align-items:center}.system-stats article.attention{border-color:#f2c9a9;background:#fffaf3}.system-stats i{width:38px;height:38px;border-radius:12px;background:#edf6f2;display:grid;place-items:center;font-size:18px;font-style:normal}.system-stats small,.system-stats b,.system-stats p{display:block;margin:0}.system-stats small{font-size:7px;font-weight:900;color:#879794}.system-stats b{font-size:20px;margin:3px 0}.system-stats p{font-size:7px;color:var(--muted)}.system-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:11px;margin-bottom:17px}.system-actions button{border:1px solid var(--line);background:#fff;border-radius:15px;padding:15px;text-align:left;display:grid;grid-template-columns:38px 1fr;column-gap:10px;cursor:pointer}.system-actions i{grid-row:1/3;width:38px;height:38px;border-radius:12px;background:#eef7f3;display:grid;place-items:center;font-size:18px;font-style:normal}.system-actions b{font-size:10px}.system-actions small{font-size:8px;color:var(--muted);margin-top:3px}.system-grid{display:grid;grid-template-columns:minmax(0,2fr) 1fr;gap:16px}.section-head{display:flex;align-items:end;justify-content:space-between;margin-bottom:9px}.section-head h2,.section-head p{margin:0}.section-head h2{font-size:14px}.section-head p{font-size:8px;color:var(--muted);margin-top:3px}.section-head button{border:0;background:transparent;color:#4c9483;font-size:8px;font-weight:900}.system-health h2{font-size:13px;margin:0 0 12px}.system-health>div{display:flex;justify-content:space-between;border-top:1px solid #edf1ef;padding:11px 0;font-size:9px}.system-health hr{border:0;border-top:1px solid var(--line)}.system-health>small{font-size:8px;line-height:1.6;color:#65827b}.warn-text{color:#d77860}.status-dot{font-size:8px;font-weight:800;color:#a67262}.status-dot.active{color:#438f7d}.system-table table{min-width:680px}@media(max-width:1100px){.system-stats{grid-template-columns:repeat(3,1fr)}.system-grid{grid-template-columns:1fr}}@media(max-width:700px){.system-hero{padding:20px;display:block}.system-hero button{width:100%;margin-top:13px}.system-stats{grid-template-columns:1fr 1fr}.system-actions{grid-template-columns:1fr}.system-stats article:last-child{grid-column:1/-1}}
+
+/* ── Giai đoạn 1: cỡ chữ đọc được và các màn hình dùng hằng ngày ──
+   Ô nhập giữ tối thiểu 16px để iOS không tự phóng to trang khi chạm vào,
+   vùng bấm tối thiểu 44px cho ngón tay. Khối này đặt cuối tệp để ghi đè
+   các quy tắc cùng độ ưu tiên ở trên. */
+body{font-size:15px;line-height:1.55}
+.shell>aside nav button{font-size:14px;min-height:44px}
+.shell>aside nav button i{font-size:20px}
+.shell>aside nav button em{font-size:11px;padding:2px 7px}
+.school b{font-size:14px}.school small{font-size:12px}
+.help b{font-size:14px}.help small{font-size:12px}
+.class small{font-size:12px}.class b{font-size:15px}
+.user b{font-size:14px}.user small{font-size:12px}
+.role-pill{font-size:12px}
+.logout{font-size:13px;min-height:38px}
+.bell{width:44px;height:44px;font-size:19px}
+.bell em{font-size:10px}
+.pagehead h1{font-size:24px}
+.pagehead p{font-size:14px}
+.pagehead>button{font-size:14px;min-height:44px;padding:0 16px}
+.title h2{font-size:17px}.title p{font-size:13px}.title button{font-size:13px}
+.stats small{font-size:11px}.stats b{font-size:24px}.stats p{font-size:12px}
+.kid b{font-size:15px}.kid small{font-size:13px}.kid span{font-size:12px;padding:6px 10px}
+.profile small{font-size:11px}.profile h2{font-size:20px}.profile p{font-size:14px}
+.profile>span{font-size:13px;padding:8px 12px}
+.notice h2{font-size:17px}.notice p{font-size:14px}.notice small{font-size:12px}
+.empty{font-size:15px}
+.modal h2{font-size:21px}
+.modal>p{font-size:14px}
+.modal label{font-size:14px;margin-bottom:15px}
+.modal input,.modal select,.modal textarea{font-size:16px;padding:12px;min-height:44px}
+.save,.hero button{font-size:15px;min-height:46px}
+.toast{font-size:14px;padding:13px 19px}
+table{min-width:820px}
+th{font-size:12px;padding:11px 10px}
+td{font-size:14px;padding:10px}
+.toolbar input,.toolbar select{font-size:16px;min-height:44px}
+.attendance-summary b{font-size:26px}
+.attendance-summary span{font-size:14px}
+.att-card b{font-size:15px;display:block}
+.att-card small{font-size:12px;color:var(--muted);display:block;margin-top:3px}
+.att-card button{font-size:13px;min-height:40px}
+
+/* Thanh chọn ngày và lớp, dùng chung cho điểm danh, sổ chăm sóc và phụ huynh */
+.daybar{display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px;background:#fff;border:1px solid var(--line);border-radius:15px;padding:14px 16px;margin-bottom:14px}
+.daybar label{display:block;font-size:12px;font-weight:800;color:#73817f}
+.daybar input,.daybar select{display:block;margin-top:5px;border:1px solid #dfe7e3;border-radius:10px;background:#fbfcfa;color:var(--ink);font:500 16px inherit;padding:9px 11px;min-height:44px}
+.daybar .ghost{border:1px solid #dfe7e3;background:#f4f8f6;color:#4a9484;border-radius:10px;font-size:14px;font-weight:700;padding:0 14px;min-height:44px;cursor:pointer}
+.daybar-note{flex:1 1 100%;margin:2px 0 0;font-size:13px;line-height:1.5;color:#a4763f;background:#fff6e8;border-radius:10px;padding:10px 12px}
+.saved-note{color:#3f8676;background:#eaf5f1;margin-bottom:14px}
+.attendance-summary .ghost{margin-left:auto;border:1px solid #d8e6e0;background:#fff;color:#43917f;border-radius:10px;font-size:13px;font-weight:800;padding:0 14px;min-height:42px;cursor:pointer}
+
+/* Điểm danh: mặc định có mặt, ba lựa chọn rõ ràng */
+.att-choice{display:flex;gap:6px;margin-top:12px}
+.att-choice button{flex:1;border:1px solid var(--line);background:#f8faf8;color:#7c8b89;border-radius:9px;padding:8px 4px;font-size:13px;font-weight:700;min-height:42px;cursor:pointer}
+.att-choice button.on.yes{background:#e2f2ec;border-color:#a9d7c9;color:#2f7d6b}
+.att-choice button.on.warn{background:#fdf1da;border-color:#e8cf9c;color:#916312}
+.att-choice button.on.no{background:#fbe6e2;border-color:#eeb8ae;color:#bd5044}
+.att-note{width:100%;margin-top:9px;border:1px solid #dfe7e3;border-radius:9px;background:#fbfcfa;color:var(--ink);font:500 15px inherit;padding:9px 10px;min-height:42px}
+
+/* Đơn xin nghỉ */
+.leave-inbox{margin-bottom:14px}
+.leave-line{display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-top:1px solid #eff2ef;padding:12px 0}
+.leave-line>div{flex:1;min-width:190px}
+.leave-line b{display:block;font-size:15px}
+.leave-line small{display:block;font-size:13px;color:var(--muted);margin-top:3px}
+.leave-line .approve,.leave-line .reject{border:0;border-radius:10px;font-size:13px;font-weight:800;padding:0 15px;min-height:42px;cursor:pointer}
+.leave-line .approve{background:#e2f2ec;color:#2f7d6b}
+.leave-line .reject{background:#f6f1ee;color:#a4715f}
+.leave-status{font-size:12px;font-weight:800;border-radius:10px;padding:7px 11px}
+.leave-status.ok{background:#e2f2ec;color:#2f7d6b}
+.leave-status.no{background:#fbe6e2;color:#bd5044}
+.leave-status.wait{background:#fdf1da;color:#916312}
+.leave-form label{display:block;font-size:14px;font-weight:800;color:#73817f;margin-bottom:14px}
+.leave-form input,.leave-form select,.leave-form textarea{width:100%;margin-top:6px;border:1px solid #dfe7e3;border-radius:10px;background:#fbfcfa;color:var(--ink);font:500 16px inherit;padding:11px;min-height:44px}
+.leave-form textarea{min-height:80px;resize:vertical}
+.form-error{background:#fbe6e2;color:#bd5044;border-radius:10px;padding:10px 12px;font-size:14px;margin:0 0 12px}
+
+/* Sổ chăm sóc */
+.care-table th{vertical-align:top}
+.care-table th span{display:block;margin-bottom:6px}
+.care-table th select{width:100%;border:1px solid #e2e9e5;border-radius:8px;background:#f7faf8;color:#6d7f7c;font:600 12px inherit;padding:6px 7px;min-height:34px}
+.care-table td select,.care-table td input{width:100%;border:1px solid #dfe7e3;border-radius:9px;background:#fbfcfa;color:var(--ink);font:500 14px inherit;padding:9px;min-height:42px}
+.care-table td input{min-width:170px}
+.care-table .person b{font-size:15px}
+.care-table .allergy{display:block;font-size:12px;color:#bd5044;margin-top:3px}
+.care-table table{min-width:1040px}
+
+/* Hôm nay của con */
+.child-switch{display:flex;flex-wrap:wrap;gap:9px;margin-bottom:14px}
+.child-switch button{display:flex;align-items:center;gap:8px;border:1px solid var(--line);background:#fff;color:#6f807d;border-radius:12px;padding:0 15px;min-height:46px;font-size:15px;font-weight:700;cursor:pointer}
+.child-switch button.on{border-color:#a9d7c9;background:#e9f5f1;color:#2f7d6b}
+.today-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:11px}
+.today-item{display:flex;align-items:center;gap:12px;border:1px solid var(--line);border-radius:14px;padding:14px}
+.today-item>i{width:44px;height:44px;border-radius:14px;background:#f0f7f4;display:grid;place-items:center;font-size:21px;font-style:normal;flex:none}
+.today-item small{display:block;font-size:11px;font-weight:900;color:#97a5a4;letter-spacing:.06em}
+.today-item b{display:block;font-size:16px;margin-top:4px}
+.today-item.muted{background:#fbfcfa}
+.today-item.muted b{color:var(--muted);font-weight:600}
+.teacher-note{display:flex;gap:12px;margin-top:14px;background:#fff8ec;border-radius:14px;padding:14px}
+.teacher-note>i{width:44px;height:44px;border-radius:14px;background:#ffeccd;display:grid;place-items:center;font-size:21px;font-style:normal;flex:none}
+.teacher-note small{display:block;font-size:11px;font-weight:900;color:#a4863f;letter-spacing:.06em}
+.teacher-note p{margin:5px 0 0;font-size:15px;line-height:1.6}
+
+.mobile-nav button{font-size:11px;gap:4px}
+.mobile-nav i{font-size:19px}
+
+@media(max-width:700px){
+  .content{padding-bottom:20px}
+  .daybar{padding:12px}
+  .daybar label,.daybar .ghost{flex:1 1 100%}
+  .daybar input,.daybar select,.daybar .ghost{width:100%}
+  .attendance-summary{flex-wrap:wrap}
+  .attendance-summary .progress{order:3;flex:1 1 100%;margin:10px 0 0}
+  .attendance-summary .ghost{margin-left:auto}
+  .att-choice{flex-wrap:wrap}
+  .att-choice button{flex:1 1 30%;font-size:12px}
+  .leave-line .approve,.leave-line .reject{flex:1}
+  .today-list{grid-template-columns:1fr}
+  .pagehead h1{font-size:21px}
+}

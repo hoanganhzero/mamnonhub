@@ -2,13 +2,8 @@
 import { useEffect, useState } from "react";
 import "./chibi.css";
 import * as XLSX from "xlsx";
+import { vnToday } from "../lib/day";
 
-const kids = [
-  ["🌸", "Nguyễn Gia Hân", "Ăn sáng tốt", "Đã đến"],
-  ["🦕", "Trần Minh Khang", "Ngủ đủ giấc", "Đã đến"],
-  ["🌈", "Lê Bảo Ngọc", "Nghỉ ốm", "Xin nghỉ"],
-  ["🚀", "Phạm Đức Anh", "Vui vẻ", "Đã đến"],
-];
 const nav = [
   ["🏡", "Tổng quan"],
   ["🧒", "Hồ sơ trẻ"],
@@ -84,6 +79,9 @@ export default function Home() {
               ? "admin"
               : d.user.role,
           );
+          setActive(
+            d.user.role === "parent" ? "Hôm nay của con" : "Tổng quan",
+          );
         }
         setAuthReady(true);
       })
@@ -115,6 +113,7 @@ export default function Home() {
           setRole(
             u.role === "superadmin" || u.role === "admin" ? "admin" : u.role,
           );
+          setActive(u.role === "parent" ? "Hôm nay của con" : "Tổng quan");
         }}
       />
     );
@@ -136,13 +135,15 @@ export default function Home() {
         : authUser.role === "teacher"
           ? [
               ["🏡", "Tổng quan"],
-              ["🧒", "Hồ sơ trẻ"],
               ["🙋", "Điểm danh"],
-              ["👨‍👩‍👧", "Phụ huynh"],
+              ["♥", "Sổ chăm sóc"],
+              ["🧒", "Hồ sơ trẻ"],
               ["📣", "Thông báo"],
+              ["👨‍👩‍👧", "Phụ huynh"],
             ]
           : [
-              ["🏡", "Tổng quan"],
+              ["👨‍👩‍👧", "Hôm nay của con"],
+              ["☁️", "Xin nghỉ"],
               ["📣", "Thông báo"],
             ];
   return (
@@ -729,6 +730,7 @@ function TeacherArea({
 }) {
   if (active === "Hồ sơ trẻ") return <ChildrenManager ping={ping} />;
   if (active === "Điểm danh") return <Attendance ping={ping} />;
+  if (active === "Sổ chăm sóc") return <Care ping={ping} />;
   if (active === "Phụ huynh")
     return <AccountManager ping={ping} back={() => {}} />;
   if (active === "Thông báo") return <Notices ping={ping} />;
@@ -1927,12 +1929,22 @@ type Child = {
   id?: number;
   name: string;
   className: string;
+  classId?: number | null;
   birthDate: string;
   guardian: string;
   phone: string;
   allergy: string;
   status: string;
   avatarKey?: string | null;
+  fatherName?: string;
+  fatherBirthDate?: string;
+  fatherJob?: string;
+  fatherPhone?: string;
+  motherName?: string;
+  motherBirthDate?: string;
+  motherJob?: string;
+  motherPhone?: string;
+  zaloPhone?: string;
 };
 function ChildrenManager({ ping }: { ping: (s: string) => void }) {
   const [rows, setRows] = useState<Child[]>([]),
@@ -2179,7 +2191,7 @@ function ChildrenManager({ ping }: { ping: (s: string) => void }) {
                 </td>
                 <td>
                   <span
-                    className={x.status === "Đã đến" ? "tag ok" : "tag warn"}
+                    className={x.status === "Đang học" ? "tag ok" : "tag warn"}
                   >
                     {x.status}
                   </span>
@@ -2276,14 +2288,15 @@ function ChildrenManager({ ping }: { ping: (s: string) => void }) {
                 </select>
               </label>
               <label>
-                Trạng thái
+                Tình trạng theo học
                 <select
                   name="status"
-                  defaultValue={editing?.status || "Đã đến"}
+                  defaultValue={editing?.status || "Đang học"}
                 >
-                  <option>Đã đến</option>
-                  <option>Xin nghỉ</option>
+                  <option>Đang học</option>
+                  <option>Tạm nghỉ dài ngày</option>
                   <option>Đã chuyển lớp</option>
+                  <option>Đã nghỉ học</option>
                 </select>
               </label>
             </div>
@@ -2396,53 +2409,274 @@ function ChildrenManager({ ping }: { ping: (s: string) => void }) {
   );
 }
 
+type ClassOption = { id: number; name: string; ageGroup: string };
+type AttRow = {
+  childId: number;
+  name: string;
+  className: string;
+  classId: number | null;
+  allergy: string;
+  status: string;
+  note: string;
+  checkInAt: string;
+  checkOutAt: string;
+  recorded: boolean;
+  leaveReason: string;
+};
+type LeaveRow = {
+  id: number;
+  childId: number;
+  childName: string;
+  className: string;
+  fromDate: string;
+  toDate: string;
+  reason: string;
+  note: string;
+  status: string;
+  createdAt: string;
+};
+const ATT_CHOICES = [
+  ["Có mặt", "✓ Có mặt", "yes"],
+  ["Vắng có phép", "Có phép", "warn"],
+  ["Vắng không phép", "Không phép", "no"],
+];
+
+function DayBar({
+  date,
+  setDate,
+  today,
+  classes,
+  classId,
+  setClassId,
+  scope,
+}: {
+  date: string;
+  setDate: (s: string) => void;
+  today: string;
+  classes: ClassOption[];
+  classId: string;
+  setClassId: (s: string) => void;
+  scope: string;
+}) {
+  return (
+    <div className="daybar">
+      <label>
+        Ngày
+        <input
+          type="date"
+          value={date}
+          max={today}
+          onChange={(e) => setDate(e.target.value || today)}
+        />
+      </label>
+      {classes.length > 0 && (
+        <label>
+          Lớp
+          <select value={classId} onChange={(e) => setClassId(e.target.value)}>
+            <option value="">Tất cả lớp của tôi</option>
+            {classes.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+            <option value="0">Chưa xếp lớp</option>
+          </select>
+        </label>
+      )}
+      {date !== today && (
+        <button className="ghost" onClick={() => setDate(today)}>
+          Về hôm nay
+        </button>
+      )}
+      {scope === "school" && (
+        <p className="daybar-note">
+          Bạn chưa được phân lớp chủ nhiệm nên đang xem toàn trường. Nhờ quản
+          trị trường gán lớp trong mục Thiết lập để danh sách gọn lại.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function Attendance({ ping }: { ping: (s: string) => void }) {
-  const [rows, setRows] = useState<Child[]>([]),
-    [state, setState] = useState<Record<number, string>>({});
+  const [date, setDate] = useState(vnToday()),
+    [today, setToday] = useState(vnToday()),
+    [classId, setClassId] = useState(""),
+    [classes, setClasses] = useState<ClassOption[]>([]),
+    [scope, setScope] = useState(""),
+    [rows, setRows] = useState<AttRow[]>([]),
+    [draft, setDraft] = useState<Record<number, { status: string; note: string }>>(
+      {},
+    ),
+    [leaves, setLeaves] = useState<LeaveRow[]>([]),
+    [saving, setSaving] = useState(false),
+    [loading, setLoading] = useState(true),
+    [tick, setTick] = useState(0);
+
   useEffect(() => {
-    fetch("/api/children")
-      .then((r) => r.json())
-      .then((d) => {
-        const list = d.children || [];
-        setRows(list);
-        setState(
+    let live = true;
+    const query = new URLSearchParams({ date });
+    if (classId !== "") query.set("classId", classId);
+    fetch(`/api/attendance?${query}`)
+      .then(async (r) => ({ ok: r.ok, d: await r.json() }))
+      .then(({ ok, d }) => {
+        if (!live) return;
+        setLoading(false);
+        if (!ok) {
+          ping(d.error || "Không tải được sổ điểm danh");
+          return;
+        }
+        setToday(d.today);
+        setClasses(d.classes || []);
+        setScope(d.scope);
+        setRows(d.rows || []);
+        setDraft(
           Object.fromEntries(
-            list.map((x: Child) => [x.id!, x.status || "Chưa điểm danh"]),
+            (d.rows || []).map((x: AttRow) => [
+              x.childId,
+              { status: x.status, note: x.note },
+            ]),
           ),
         );
-      });
-  }, []);
-  const present = Object.values(state).filter((x) => x === "Đã đến").length;
-  async function finish() {
-    const changed = rows.filter((x) => state[x.id!] !== x.status);
-    const results = await Promise.all(
-      changed.map((x) =>
-        fetch("/api/children", {
-          method: "PATCH",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ id: x.id, status: state[x.id!] }),
-        }),
+      })
+      .catch(() => live && setLoading(false));
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [date, classId, tick]);
+  useEffect(() => {
+    let live = true;
+    fetch("/api/leave-requests")
+      .then((r) => (r.ok ? r.json() : { requests: [] }))
+      .then((d) => {
+        if (live)
+          setLeaves(
+            (d.requests || []).filter(
+              (x: LeaveRow) => x.status === "Chờ duyệt",
+            ),
+          );
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [tick]);
+
+  const reload = () => setTick((t) => t + 1);
+  const pick = (childId: number, status: string) =>
+    setDraft((s) => ({
+      ...s,
+      [childId]: { status, note: status === "Có mặt" ? "" : s[childId]?.note || "" },
+    }));
+  const allPresent = () =>
+    setDraft(
+      Object.fromEntries(
+        rows.map((x) => [x.childId, { status: "Có mặt", note: "" }]),
       ),
     );
-    if (results.some((r) => !r.ok)) {
-      ping("Có hồ sơ chưa lưu được");
+  const present = rows.filter(
+    (x) => (draft[x.childId]?.status || "Có mặt") === "Có mặt",
+  ).length;
+  const recorded = rows.filter((x) => x.recorded).length;
+  const pending = leaves.filter((x) => x.toDate >= date);
+
+  async function save() {
+    if (!rows.length) return;
+    setSaving(true);
+    const r = await fetch("/api/attendance", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          date,
+          items: rows.map((x) => ({
+            childId: x.childId,
+            status: draft[x.childId]?.status || "Có mặt",
+            note: draft[x.childId]?.note || "",
+          })),
+        }),
+      }),
+      d = await r.json();
+    setSaving(false);
+    if (!r.ok) {
+      ping(d.error || "Chưa lưu được điểm danh");
       return;
     }
-    setRows((s) => s.map((x) => ({ ...x, status: state[x.id!] })));
-    ping(`Đã lưu điểm danh ${rows.length} trẻ`);
+    setRows((s) =>
+      s.map((x) => ({
+        ...x,
+        recorded: true,
+        status: draft[x.childId]?.status || "Có mặt",
+        note: draft[x.childId]?.note || "",
+      })),
+    );
+    ping(`Đã lưu: ${d.present} có mặt · ${d.absent} vắng`);
   }
+
+  async function review(id: number, status: string) {
+    const r = await fetch("/api/leave-requests", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id, status }),
+      }),
+      d = await r.json();
+    if (!r.ok) {
+      ping(d.error || "Không xử lý được đơn");
+      return;
+    }
+    ping(status === "Đã duyệt" ? "Đã duyệt đơn xin nghỉ" : "Đã từ chối đơn");
+    reload();
+  }
+
   return (
     <>
       <PageHead
         icon="🙋"
-        title="Điểm danh hôm nay"
-        sub="Dữ liệu được lưu trực tiếp vào hồ sơ trẻ"
+        title="Điểm danh"
+        sub="Mặc định cả lớp có mặt — cô chỉ bấm những bé vắng rồi lưu một lần"
       />
+      <DayBar
+        date={date}
+        setDate={setDate}
+        today={today}
+        classes={classes}
+        classId={classId}
+        setClassId={setClassId}
+        scope={scope}
+      />
+      {pending.length > 0 && (
+        <div className="panel leave-inbox">
+          <Title
+            title="Đơn xin nghỉ chờ duyệt"
+            sub={`${pending.length} đơn từ phụ huynh`}
+          />
+          {pending.map((x) => (
+            <div className="leave-line" key={x.id}>
+              <div>
+                <b>{x.childName}</b>
+                <small>
+                  {x.fromDate === x.toDate
+                    ? x.fromDate
+                    : `${x.fromDate} → ${x.toDate}`}{" "}
+                  · {x.reason}
+                  {x.note ? ` · ${x.note}` : ""}
+                </small>
+              </div>
+              <button className="approve" onClick={() => review(x.id, "Đã duyệt")}>
+                Duyệt
+              </button>
+              <button className="reject" onClick={() => review(x.id, "Từ chối")}>
+                Từ chối
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
       <div className="attendance-summary">
         <b>
           {present}/{rows.length}
         </b>
-        <span>trẻ đã đến</span>
+        <span>trẻ có mặt</span>
         <div className="progress">
           <i
             style={{
@@ -2450,124 +2684,276 @@ function Attendance({ ping }: { ping: (s: string) => void }) {
             }}
           />
         </div>
-      </div>
-      <div className="panel">
-        <div className="att-grid">
-          {rows.map((x) => (
-            <div className="att-card" key={x.id}>
-              <i>
-                <ChibiIcon icon="🧒" />
-              </i>
-              <b>{x.name}</b>
-              <small>
-                {x.className} · {state[x.id!]}
-              </small>
-              <div>
-                <button
-                  className={state[x.id!] === "Đã đến" ? "selected" : ""}
-                  onClick={() => setState((s) => ({ ...s, [x.id!]: "Đã đến" }))}
-                >
-                  ✓ Có mặt
-                </button>
-                <button
-                  className={state[x.id!] === "Xin nghỉ" ? "abs-selected" : ""}
-                  onClick={() =>
-                    setState((s) => ({ ...s, [x.id!]: "Xin nghỉ" }))
-                  }
-                >
-                  × Vắng
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-        <button className="save finish" onClick={finish}>
-          Hoàn tất điểm danh
+        <button className="ghost" onClick={allPresent}>
+          Tất cả có mặt
         </button>
       </div>
-      {!rows.length && (
-        <div className="empty">Chưa có hồ sơ trẻ để điểm danh.</div>
+      {recorded > 0 && (
+        <p className="daybar-note saved-note">
+          Ngày {date} đã có {recorded} trẻ được ghi nhận. Sửa lại rồi bấm lưu sẽ
+          ghi đè.
+        </p>
+      )}
+      <div className="panel">
+        <div className="att-grid">
+          {rows.map((x) => {
+            const status = draft[x.childId]?.status || "Có mặt";
+            return (
+              <div className="att-card" key={x.childId}>
+                <i>
+                  <ChibiIcon icon="🧒" />
+                </i>
+                <b>{x.name}</b>
+                <small>
+                  {x.className}
+                  {x.leaveReason ? " · phụ huynh đã xin nghỉ" : ""}
+                </small>
+                <div className="att-choice">
+                  {ATT_CHOICES.map(([value, label, tone]) => (
+                    <button
+                      key={value}
+                      className={status === value ? `on ${tone}` : ""}
+                      onClick={() => pick(x.childId, value)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {status !== "Có mặt" && (
+                  <input
+                    className="att-note"
+                    placeholder="Lý do (không bắt buộc)"
+                    value={draft[x.childId]?.note || ""}
+                    onChange={(e) =>
+                      setDraft((s) => ({
+                        ...s,
+                        [x.childId]: { status, note: e.target.value },
+                      }))
+                    }
+                  />
+                )}
+              </div>
+            );
+          })}
+        </div>
+        {rows.length > 0 && (
+          <button className="save finish" onClick={save} disabled={saving}>
+            {saving ? "Đang lưu…" : `Lưu điểm danh ${rows.length} trẻ`}
+          </button>
+        )}
+      </div>
+      {!loading && !rows.length && (
+        <div className="empty">
+          Chưa có hồ sơ trẻ trong phạm vi này. Vào “Hồ sơ trẻ” để thêm mới hoặc
+          nhập từ Excel.
+        </div>
       )}
     </>
   );
 }
 
+type CareRow = {
+  childId: number;
+  name: string;
+  className: string;
+  allergy: string;
+  breakfast: string;
+  lunch: string;
+  snack: string;
+  sleep: string;
+  mood: string;
+  health: string;
+  note: string;
+  recorded: boolean;
+};
+type CareOptions = {
+  meals: string[];
+  sleeps: string[];
+  moods: string[];
+  health: string[];
+};
+const CARE_COLUMNS: [keyof CareRow, string, keyof CareOptions][] = [
+  ["breakfast", "BỮA SÁNG", "meals"],
+  ["lunch", "BỮA TRƯA", "meals"],
+  ["snack", "BỮA XẾ", "meals"],
+  ["sleep", "GIẤC NGỦ", "sleeps"],
+  ["mood", "TÂM TRẠNG", "moods"],
+  ["health", "SỨC KHỎE", "health"],
+];
+
 function Care({ ping }: { ping: (s: string) => void }) {
+  const [date, setDate] = useState(vnToday()),
+    [today, setToday] = useState(vnToday()),
+    [classId, setClassId] = useState(""),
+    [classes, setClasses] = useState<ClassOption[]>([]),
+    [scope, setScope] = useState(""),
+    [rows, setRows] = useState<CareRow[]>([]),
+    [options, setOptions] = useState<CareOptions>({
+      meals: [],
+      sleeps: [],
+      moods: [],
+      health: [],
+    }),
+    [saving, setSaving] = useState(false),
+    [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let live = true;
+    const query = new URLSearchParams({ date });
+    if (classId !== "") query.set("classId", classId);
+    fetch(`/api/daily-logs?${query}`)
+      .then(async (r) => ({ ok: r.ok, d: await r.json() }))
+      .then(({ ok, d }) => {
+        if (!live) return;
+        setLoading(false);
+        if (!ok) {
+          ping(d.error || "Không tải được sổ chăm sóc");
+          return;
+        }
+        setToday(d.today);
+        setClasses(d.classes || []);
+        setScope(d.scope);
+        setRows(d.rows || []);
+        setOptions(d.options);
+      })
+      .catch(() => live && setLoading(false));
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [date, classId]);
+
+  const edit = (childId: number, field: keyof CareRow, value: string) =>
+    setRows((s) =>
+      s.map((x) => (x.childId === childId ? { ...x, [field]: value } : x)),
+    );
+  const applyAll = (field: keyof CareRow, value: string) => {
+    if (!value) return;
+    setRows((s) => s.map((x) => ({ ...x, [field]: value })));
+    ping(`Đã áp dụng “${value}” cho cả lớp`);
+  };
+
+  async function save() {
+    if (!rows.length) return;
+    setSaving(true);
+    const r = await fetch("/api/daily-logs", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          date,
+          items: rows.map((x) => ({
+            childId: x.childId,
+            breakfast: x.breakfast,
+            lunch: x.lunch,
+            snack: x.snack,
+            sleep: x.sleep,
+            mood: x.mood,
+            health: x.health,
+            note: x.note,
+          })),
+        }),
+      }),
+      d = await r.json();
+    setSaving(false);
+    if (!r.ok) {
+      ping(d.error || "Chưa lưu được sổ chăm sóc");
+      return;
+    }
+    setRows((s) => s.map((x) => ({ ...x, recorded: true })));
+    ping(`Đã lưu sổ chăm sóc ${d.saved} trẻ`);
+  }
+
   return (
     <>
       <PageHead
         icon="♥"
-        title="Ăn · Ngủ · Sức khỏe"
-        sub="Theo dõi chăm sóc hằng ngày"
+        title="Sổ chăm sóc"
+        sub="Ăn · ngủ · tâm trạng · sức khỏe — phụ huynh xem được ngay sau khi lưu"
       />
-      <div className="care-tabs">
-        <button className="on">🍚 Bữa ăn</button>
-        <button>☾ Giấc ngủ</button>
-        <button>♥ Sức khỏe</button>
-        <button>😊 Tâm trạng</button>
-      </div>
-      <div className="panel tablewrap">
+      <DayBar
+        date={date}
+        setDate={setDate}
+        today={today}
+        classes={classes}
+        classId={classId}
+        setClassId={setClassId}
+        scope={scope}
+      />
+      <div className="panel tablewrap care-table">
         <table>
           <thead>
             <tr>
               <th>TRẺ</th>
-              <th>BỮA SÁNG</th>
-              <th>BỮA TRƯA</th>
-              <th>GIẤC NGỦ</th>
-              <th>TÂM TRẠNG</th>
-              <th>LƯU Ý</th>
+              {CARE_COLUMNS.map(([field, label, group]) => (
+                <th key={field}>
+                  <span>{label}</span>
+                  <select
+                    value=""
+                    onChange={(e) => applyAll(field, e.target.value)}
+                  >
+                    <option value="">Cả lớp…</option>
+                    {options[group].map((o) => (
+                      <option key={o} value={o}>
+                        {o}
+                      </option>
+                    ))}
+                  </select>
+                </th>
+              ))}
+              <th>LƯU Ý RIÊNG</th>
             </tr>
           </thead>
           <tbody>
-            {kids.map(([a, n], i) => (
-              <tr key={n}>
+            {rows.map((x) => (
+              <tr key={x.childId}>
                 <td>
                   <div className="person">
                     <i>
                       <ChibiIcon icon="🧒" />
                     </i>
-                    <b>{n}</b>
+                    <div>
+                      <b>{x.name}</b>
+                      {x.allergy && x.allergy !== "Không" && (
+                        <small className="allergy">Dị ứng: {x.allergy}</small>
+                      )}
+                    </div>
                   </div>
                 </td>
+                {CARE_COLUMNS.map(([field, , group]) => (
+                  <td key={field}>
+                    <select
+                      value={String(x[field] ?? "")}
+                      onChange={(e) => edit(x.childId, field, e.target.value)}
+                    >
+                      <option value="">—</option>
+                      {options[group].map((o) => (
+                        <option key={o} value={o}>
+                          {o}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                ))}
                 <td>
-                  <select defaultValue={i == 2 ? "Nửa suất" : "Ăn hết"}>
-                    <option>Ăn hết</option>
-                    <option>Nửa suất</option>
-                    <option>Không ăn</option>
-                  </select>
-                </td>
-                <td>
-                  <select>
-                    <option>Ăn hết</option>
-                    <option>Nửa suất</option>
-                  </select>
-                </td>
-                <td>
-                  <select>
-                    <option>Ngủ ngon</option>
-                    <option>Khó ngủ</option>
-                  </select>
-                </td>
-                <td>
-                  <select>
-                    <option>😊 Vui vẻ</option>
-                    <option>😴 Mệt</option>
-                  </select>
-                </td>
-                <td>
-                  <input placeholder="Ghi chú..." />
+                  <input
+                    placeholder="Ghi chú gửi phụ huynh…"
+                    value={x.note}
+                    onChange={(e) => edit(x.childId, "note", e.target.value)}
+                  />
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-        <button
-          className="save finish"
-          onClick={() => ping("Đã lưu nhật ký chăm sóc")}
-        >
-          Lưu theo dõi hôm nay
-        </button>
+        {rows.length > 0 && (
+          <button className="save finish" onClick={save} disabled={saving}>
+            {saving ? "Đang lưu…" : `Lưu sổ chăm sóc ${rows.length} trẻ`}
+          </button>
+        )}
       </div>
+      {!loading && !rows.length && (
+        <div className="empty">Chưa có hồ sơ trẻ trong phạm vi này.</div>
+      )}
     </>
   );
 }
@@ -2806,21 +3192,32 @@ function Notices({ ping }: { ping: (s: string) => void }) {
 }
 function Teacher({ ping }: { ping: (s: string) => void }) {
   const [children, setChildren] = useState<Child[]>([]),
-    [parents, setParents] = useState<ManagedUser[]>([]);
+    [parents, setParents] = useState<ManagedUser[]>([]),
+    [marks, setMarks] = useState<AttRow[]>([]),
+    [marked, setMarked] = useState(0);
   useEffect(() => {
     fetch("/api/children")
       .then((r) => r.json())
       .then((d) => setChildren(d.children || []));
     fetch("/api/users")
-      .then((r) => r.json())
+      .then((r) => (r.ok ? r.json() : { users: [] }))
       .then((d) =>
         setParents(
           (d.users || []).filter((x: ManagedUser) => x.role === "parent"),
         ),
       );
+    fetch(`/api/attendance?date=${vnToday()}`)
+      .then((r) => (r.ok ? r.json() : { rows: [] }))
+      .then((d) => {
+        setMarks(d.rows || []);
+        setMarked(d.recordedCount || 0);
+      });
   }, []);
-  const present = children.filter((x) => x.status === "Đã đến").length,
-    absent = children.filter((x) => x.status === "Xin nghỉ").length;
+  const present = marks.filter(
+    (x) => x.recorded && x.status === "Có mặt",
+  ).length;
+  const absent = marks.filter((x) => x.recorded && x.status !== "Có mặt").length;
+
   return (
     <>
       <section className="hero">
@@ -2848,9 +3245,9 @@ function Teacher({ ping }: { ping: (s: string) => void }) {
             <ChibiIcon icon="🙋" />
           </i>
           <div>
-            <small>ĐÃ ĐẾN</small>
+            <small>CÓ MẶT HÔM NAY</small>
             <b>{present}</b>
-            <p>Theo trạng thái hiện tại</p>
+            <p>{marked ? `Đã điểm danh ${marked} trẻ` : "Chưa điểm danh"}</p>
           </div>
         </article>
         <article>
@@ -2858,9 +3255,9 @@ function Teacher({ ping }: { ping: (s: string) => void }) {
             <ChibiIcon icon="😴" />
           </i>
           <div>
-            <small>XIN NGHỈ</small>
+            <small>VẮNG HÔM NAY</small>
             <b>{absent}</b>
-            <p>Theo trạng thái hiện tại</p>
+            <p>Theo sổ điểm danh hôm nay</p>
           </div>
         </article>
         <article>
@@ -2890,7 +3287,7 @@ function Teacher({ ping }: { ping: (s: string) => void }) {
                 {x.className} · {x.guardian || "Chưa cập nhật phụ huynh"}
               </small>
             </div>
-            <span className={x.status === "Đã đến" ? "yes" : "no"}>
+            <span className={x.status === "Đang học" ? "yes" : "no"}>
               {x.status}
             </span>
           </div>
@@ -2904,69 +3301,372 @@ function Teacher({ ping }: { ping: (s: string) => void }) {
     </>
   );
 }
-function Parent({ active }: { active: string; ping: (s: string) => void }) {
+type TodayChild = {
+  id: number;
+  name: string;
+  className: string;
+  birthDate: string;
+  allergy: string;
+  avatarKey?: string | null;
+  attendance: {
+    status: string;
+    note: string;
+    checkInAt: string;
+    checkOutAt: string;
+  } | null;
+  log: {
+    breakfast: string;
+    lunch: string;
+    snack: string;
+    sleep: string;
+    sleepMinutes: number | null;
+    mood: string;
+    health: string;
+    note: string;
+  } | null;
+  leave: {
+    fromDate: string;
+    toDate: string;
+    reason: string;
+    status: string;
+  } | null;
+};
+
+function ParentToday({ ping }: { ping: (s: string) => void }) {
+  const [date, setDate] = useState(vnToday()),
+    [today, setToday] = useState(vnToday()),
+    [children, setChildren] = useState<TodayChild[]>([]),
+    [picked, setPicked] = useState<number | null>(null),
+    [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let live = true;
+    fetch(`/api/today?date=${date}`)
+      .then(async (r) => ({ ok: r.ok, d: await r.json() }))
+      .then(({ ok, d }) => {
+        if (!live) return;
+        setLoading(false);
+        if (!ok) {
+          ping(d.error || "Không tải được thông tin hôm nay");
+          return;
+        }
+        setToday(d.today);
+        setChildren(d.children || []);
+        setPicked((cur) =>
+          cur && (d.children || []).some((x: TodayChild) => x.id === cur)
+            ? cur
+            : (d.children || [])[0]?.id || null,
+        );
+      })
+      .catch(() => live && setLoading(false));
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [date]);
+
+  const child = children.find((x) => x.id === picked) || children[0] || null;
+  const log = child?.log || null;
+  const items: [string, string, string][] = child
+    ? [
+        [
+          "🙋",
+          "Đến lớp",
+          child.attendance
+            ? child.attendance.status === "Có mặt"
+              ? child.attendance.checkInAt
+                ? `Có mặt · ${child.attendance.checkInAt}`
+                : "Có mặt"
+              : `${child.attendance.status}${child.attendance.note ? ` · ${child.attendance.note}` : ""}`
+            : "Cô chưa điểm danh",
+        ],
+        ["🥣", "Bữa sáng", log?.breakfast || "Chưa cập nhật"],
+        ["🍱", "Bữa trưa", log?.lunch || "Chưa cập nhật"],
+        ["🥛", "Bữa xế", log?.snack || "Chưa cập nhật"],
+        [
+          "😴",
+          "Giấc ngủ",
+          log?.sleep
+            ? log.sleepMinutes
+              ? `${log.sleep} · ${log.sleepMinutes} phút`
+              : log.sleep
+            : "Chưa cập nhật",
+        ],
+        ["🥰", "Tâm trạng", log?.mood || "Chưa cập nhật"],
+        ["💗", "Sức khỏe", log?.health || "Chưa cập nhật"],
+      ]
+    : [];
+  const nothingYet = child && !child.attendance && !child.log;
+
+  return (
+    <>
+      <PageHead
+        icon="👨‍👩‍👧"
+        title={child ? `Hôm nay của ${child.name}` : "Hôm nay của con"}
+        sub="Cập nhật trực tiếp từ cô giáo phụ trách lớp"
+      />
+      <div className="daybar">
+        <label>
+          Ngày
+          <input
+            type="date"
+            value={date}
+            max={today}
+            onChange={(e) => setDate(e.target.value || today)}
+          />
+        </label>
+        {date !== today && (
+          <button className="ghost" onClick={() => setDate(today)}>
+            Về hôm nay
+          </button>
+        )}
+      </div>
+      {children.length > 1 && (
+        <div className="child-switch">
+          {children.map((x) => (
+            <button
+              key={x.id}
+              className={x.id === child?.id ? "on" : ""}
+              onClick={() => setPicked(x.id)}
+            >
+              <ChibiIcon icon="🧒" />
+              {x.name}
+            </button>
+          ))}
+        </div>
+      )}
+      {child && (
+        <>
+          <div className="profile">
+            <i>
+              <ChibiIcon icon="🧒" />
+            </i>
+            <div>
+              <small>LỚP {child.className.toUpperCase()}</small>
+              <h2>{child.name}</h2>
+              <p>
+                Ngày sinh {child.birthDate || "chưa cập nhật"}
+                {child.allergy && child.allergy !== "Không"
+                  ? ` · Dị ứng: ${child.allergy}`
+                  : ""}
+              </p>
+            </div>
+            <span>{child.attendance?.status || "Chưa điểm danh"}</span>
+          </div>
+          {child.leave && (
+            <p className="daybar-note saved-note">
+              Đơn xin nghỉ ngày{" "}
+              {child.leave.fromDate === child.leave.toDate
+                ? child.leave.fromDate
+                : `${child.leave.fromDate} → ${child.leave.toDate}`}{" "}
+              · {child.leave.reason} — {child.leave.status.toLowerCase()}.
+            </p>
+          )}
+          <div className="panel">
+            <Title title="Một ngày ở lớp" sub={`Ngày ${date}`} />
+            {nothingYet ? (
+              <div className="empty">
+                Cô chưa cập nhật ngày này. Thông tin sẽ hiện ngay khi cô lưu sổ.
+              </div>
+            ) : (
+              <div className="today-list">
+                {items.map(([icon, label, value]) => (
+                  <div
+                    className={`today-item${value === "Chưa cập nhật" || value === "Cô chưa điểm danh" ? " muted" : ""}`}
+                    key={label}
+                  >
+                    <i>
+                      <ChibiIcon icon={icon} />
+                    </i>
+                    <div>
+                      <small>{label}</small>
+                      <b>{value}</b>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {log?.note && (
+              <div className="teacher-note">
+                <i>
+                  <ChibiIcon icon="✎" />
+                </i>
+                <div>
+                  <small>LỜI NHẮN CỦA CÔ</small>
+                  <p>{log.note}</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+      {!loading && !children.length && (
+        <div className="empty">
+          Tài khoản chưa được liên kết với hồ sơ trẻ. Nhờ giáo viên chủ nhiệm
+          liên kết giúp trong mục Phụ huynh.
+        </div>
+      )}
+    </>
+  );
+}
+
+function ParentLeave({ ping }: { ping: (s: string) => void }) {
+  const [children, setChildren] = useState<Child[]>([]),
+    [requests, setRequests] = useState<LeaveRow[]>([]),
+    [reasons, setReasons] = useState<string[]>([]),
+    [today, setToday] = useState(vnToday()),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState("");
+
+  const load = () =>
+    Promise.all([
+      fetch("/api/children").then((r) => r.json()),
+      fetch("/api/leave-requests").then((r) => r.json()),
+    ]).then(([c, l]) => {
+      setChildren(c.children || []);
+      setRequests(l.requests || []);
+      setReasons(l.reasons || []);
+      if (l.today) setToday(l.today);
+    });
+  useEffect(() => {
+    load();
+  }, []);
+
+  async function submit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError("");
+    setBusy(true);
+    const f = new FormData(e.currentTarget),
+      form = e.currentTarget;
+    const r = await fetch("/api/leave-requests", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          childId: Number(f.get("childId")),
+          fromDate: String(f.get("fromDate")),
+          toDate: String(f.get("toDate") || f.get("fromDate")),
+          reason: String(f.get("reason")),
+          note: String(f.get("note") || ""),
+        }),
+      }),
+      d = await r.json();
+    setBusy(false);
+    if (!r.ok) {
+      setError(d.error || "Chưa gửi được đơn");
+      return;
+    }
+    form.reset();
+    await load();
+    ping("Đã gửi đơn xin nghỉ tới cô giáo");
+  }
+
+  return (
+    <>
+      <PageHead
+        icon="☁️"
+        title="Xin nghỉ cho con"
+        sub="Đơn hiện ngay trên sổ điểm danh của cô, không cần gọi điện"
+      />
+      {children.length > 0 ? (
+        <form className="panel leave-form" onSubmit={submit}>
+          <div className="row">
+            <label>
+              Bé
+              <select name="childId" required>
+                {children.map((x) => (
+                  <option key={x.id} value={x.id}>
+                    {x.name} · {x.className}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Lý do
+              <select name="reason">
+                {reasons.map((x) => (
+                  <option key={x}>{x}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div className="row">
+            <label>
+              Từ ngày
+              <input type="date" name="fromDate" defaultValue={today} required />
+            </label>
+            <label>
+              Đến ngày
+              <input type="date" name="toDate" defaultValue={today} />
+            </label>
+          </div>
+          <label>
+            Nhắn thêm với cô
+            <textarea name="note" rows={3} placeholder="Ví dụ: con sốt nhẹ, gia đình cho nghỉ theo dõi." />
+          </label>
+          {error && <p className="form-error">{error}</p>}
+          <button className="save" disabled={busy}>
+            {busy ? "Đang gửi…" : "Gửi đơn xin nghỉ"}
+          </button>
+        </form>
+      ) : (
+        <div className="empty">
+          Tài khoản chưa được liên kết với hồ sơ trẻ nên chưa gửi đơn được.
+        </div>
+      )}
+      <div className="panel">
+        <Title title="Đơn đã gửi" sub={`${requests.length} đơn`} />
+        {requests.map((x) => (
+          <div className="leave-line" key={x.id}>
+            <div>
+              <b>
+                {x.childName} ·{" "}
+                {x.fromDate === x.toDate
+                  ? x.fromDate
+                  : `${x.fromDate} → ${x.toDate}`}
+              </b>
+              <small>
+                {x.reason}
+                {x.note ? ` · ${x.note}` : ""}
+              </small>
+            </div>
+            <span
+              className={`leave-status ${x.status === "Đã duyệt" ? "ok" : x.status === "Từ chối" ? "no" : "wait"}`}
+            >
+              {x.status}
+            </span>
+          </div>
+        ))}
+        {!requests.length && <div className="empty">Chưa gửi đơn nào.</div>}
+      </div>
+    </>
+  );
+}
+
+function ParentNotices({ ping }: { ping: (s: string) => void }) {
   const [items, setItems] = useState<
-      {
-        id: number;
-        title: string;
-        content: string;
-        audience: string;
-        createdAt: string;
-      }[]
-    >([]),
-    [children, setChildren] = useState<Child[]>([]);
+    {
+      id: number;
+      title: string;
+      content: string;
+      audience: string;
+      createdAt: string;
+    }[]
+  >([]);
   useEffect(() => {
     fetch("/api/announcements")
-      .then((r) => r.json())
-      .then((d) => setItems(d.announcements || []));
-    fetch("/api/children")
-      .then((r) => r.json())
-      .then((d) => setChildren(d.children || []));
+      .then((r) => (r.ok ? r.json() : { announcements: [] }))
+      .then((d) => setItems(d.announcements || []))
+      .catch(() => ping("Không tải được thông báo"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   return (
     <>
       <PageHead
-        icon={active === "Thông báo" ? "📣" : "👨‍👩‍👧"}
-        title={
-          active === "Thông báo"
-            ? "Thông báo từ nhà trường"
-            : "Không gian phụ huynh"
-        }
-        sub="Chỉ hiển thị dữ liệu thật do nhà trường và giáo viên cập nhật"
+        icon="📣"
+        title="Thông báo từ nhà trường"
+        sub="Thông tin do nhà trường và giáo viên gửi"
       />
-      {active !== "Thông báo" && (
-        <div className="panel">
-          <Title
-            title="Hồ sơ trẻ đã liên kết"
-            sub={`${children.length} hồ sơ`}
-          />
-          {children.map((x) => (
-            <div className="profile" key={x.id}>
-              <i>
-                <ChibiIcon icon="🧒" />
-              </i>
-              <div>
-                <small>HỒ SƠ CỦA CON</small>
-                <h2>{x.name}</h2>
-                <p>
-                  {x.className} · Ngày sinh {x.birthDate || "Chưa cập nhật"}
-                </p>
-              </div>
-              <span>{x.status}</span>
-            </div>
-          ))}
-          {!children.length && (
-            <div className="empty">
-              Tài khoản chưa được giáo viên liên kết với hồ sơ trẻ.
-            </div>
-          )}
-        </div>
-      )}
       <div className="panel">
-        <Title
-          title="Thông báo mới nhất"
-          sub={`${items.length} thông báo trong hệ thống`}
-        />
         {items.map((x) => (
           <article className="notice" key={x.id}>
             <i>
@@ -2988,6 +3688,19 @@ function Parent({ active }: { active: string; ping: (s: string) => void }) {
     </>
   );
 }
+
+function Parent({
+  active,
+  ping,
+}: {
+  active: string;
+  ping: (s: string) => void;
+}) {
+  if (active === "Xin nghỉ") return <ParentLeave ping={ping} />;
+  if (active === "Thông báo") return <ParentNotices ping={ping} />;
+  return <ParentToday ping={ping} />;
+}
+
 function Title({ title, sub }: { title: string; sub: string }) {
   return (
     <div className="title">

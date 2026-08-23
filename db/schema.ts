@@ -115,3 +115,69 @@ export const sessions = sqliteTable("sessions", {
     .notNull()
     .default(sql`CURRENT_TIMESTAMP`),
 });
+
+export const attendance = sqliteTable(
+  "attendance",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    schoolId: integer("school_id").notNull(),
+    childId: integer("child_id").notNull(),
+    classId: integer("class_id"),
+    date: text("date").notNull(),
+    status: text("status").notNull().default("Có mặt"),
+    note: text("note").notNull().default(""),
+    checkInAt: text("check_in_at").notNull().default(""),
+    checkOutAt: text("check_out_at").notNull().default(""),
+    recordedBy: integer("recorded_by"),
+    updatedAt: text("updated_at")
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [
+    uniqueIndex("attendance_child_date_unique").on(table.childId, table.date),
+  ],
+);
+
+export const dailyLogs = sqliteTable(
+  "daily_logs",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    schoolId: integer("school_id").notNull(),
+    childId: integer("child_id").notNull(),
+    classId: integer("class_id"),
+    date: text("date").notNull(),
+    breakfast: text("breakfast").notNull().default(""),
+    lunch: text("lunch").notNull().default(""),
+    snack: text("snack").notNull().default(""),
+    sleep: text("sleep").notNull().default(""),
+    sleepMinutes: integer("sleep_minutes"),
+    mood: text("mood").notNull().default(""),
+    health: text("health").notNull().default(""),
+    note: text("note").notNull().default(""),
+    recordedBy: integer("recorded_by"),
+    updatedAt: text("updated_at")
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [
+    uniqueIndex("daily_logs_child_date_unique").on(table.childId, table.date),
+  ],
+);
+
+export const leaveRequests = sqliteTable("leave_requests", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  schoolId: integer("school_id").notNull(),
+  childId: integer("child_id").notNull(),
+  classId: integer("class_id"),
+  fromDate: text("from_date").notNull(),
+  toDate: text("to_date").notNull(),
+  reason: text("reason").notNull().default("Ốm"),
+  note: text("note").notNull().default(""),
+  status: text("status").notNull().default("Chờ duyệt"),
+  createdBy: integer("created_by").notNull(),
+  reviewedBy: integer("reviewed_by"),
+  reviewedAt: text("reviewed_at").notNull().default(""),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
+});

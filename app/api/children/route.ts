@@ -1,6 +1,7 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getDb } from "../../../db";
-import { children } from "../../../db/schema";
+import { children, classes } from "../../../db/schema";
+import { classParam, scopedChildren, teacherClasses } from "../../../lib/scope";
 import { currentUser } from "../../../lib/session";
 
 async function scope(request: Request) {
@@ -9,33 +10,42 @@ async function scope(request: Request) {
   return user;
 }
 
+/**
+ * Lớp mà người dùng được phép xếp trẻ vào. Trả về null khi bỏ trống lớp,
+ * hoặc undefined khi mã lớp không thuộc phạm vi của người dùng.
+ */
+async function resolveClass(
+  user: NonNullable<Awaited<ReturnType<typeof scope>>>,
+  raw: unknown,
+) {
+  if (raw === undefined || raw === null || raw === "") return null;
+  const id = Number(raw);
+  if (!Number.isInteger(id) || id <= 0) return null;
+  if (!user.schoolId) return undefined;
+  const [row] = await getDb()
+    .select()
+    .from(classes)
+    .where(and(eq(classes.id, id), eq(classes.schoolId, user.schoolId)))
+    .limit(1);
+  if (!row) return undefined;
+  if (user.role === "teacher") {
+    const mine = await teacherClasses(user);
+    if (!mine.some((x) => x.id === id)) return undefined;
+  }
+  return row;
+}
+
 export async function GET(request: Request) {
   try {
     const user = await scope(request);
     if (!user)
       return Response.json({ error: "Chưa đăng nhập" }, { status: 401 });
-    if (user.role === "superadmin")
-      return Response.json({
-        children: await getDb()
-          .select()
-          .from(children)
-          .orderBy(desc(children.id)),
-      });
-    if (user.role === "parent")
-      return Response.json({
-        children: await getDb()
-          .select()
-          .from(children)
-          .where(eq(children.parentUserId, user.id))
-          .orderBy(desc(children.id)),
-      });
-    if (!user.schoolId) return Response.json({ children: [] });
+    const result = await scopedChildren(user, classParam(request));
     return Response.json({
-      children: await getDb()
-        .select()
-        .from(children)
-        .where(eq(children.schoolId, user.schoolId))
-        .orderBy(desc(children.id)),
+      children: result.rows,
+      classes: result.classes,
+      scope: result.scope,
+      classId: result.classId,
     });
   } catch (error) {
     return Response.json({ error: String(error) }, { status: 500 });
@@ -53,7 +63,16 @@ export async function POST(request: Request) {
       );
     const body = (await request.json()) as
       | Record<string, string>
-      | { items: Record<string, string>[] };
+      | { items: Record<string, string>[]; classId?: string | number };
+    const assigned = await resolveClass(
+      user,
+      (body as Record<string, unknown>).classId,
+    );
+    if (assigned === undefined)
+      return Response.json(
+        { error: "Lớp không thuộc phạm vi bạn phụ trách" },
+        { status: 403 },
+      );
     if ("items" in body) {
       const items = body.items;
       if (!Array.isArray(items) || !items.length || items.length > 500)
@@ -66,12 +85,13 @@ export async function POST(request: Request) {
         .map((p) => ({
           schoolId: user.schoolId!,
           name: p.name.trim(),
-          className: p.className || "Chưa xếp lớp",
+          classId: assigned?.id ?? null,
+          className: assigned?.name || p.className || "Chưa xếp lớp",
           birthDate: p.birthDate || "",
           guardian: p.guardian || "",
           phone: p.phone || "",
           allergy: p.allergy || "Không",
-          status: "Chưa điểm danh",
+          status: "Đang học",
           fatherName: p.fatherName || "",
           fatherBirthDate: p.fatherBirthDate || "",
           fatherJob: p.fatherJob || "",
@@ -101,12 +121,13 @@ export async function POST(request: Request) {
       .values({
         schoolId: user.schoolId,
         name: p.name.trim(),
-        className: p.className || "Chưa xếp lớp",
+        classId: assigned?.id ?? null,
+        className: assigned?.name || p.className || "Chưa xếp lớp",
         birthDate: p.birthDate || "",
         guardian: p.guardian || "",
         phone: p.phone || "",
         allergy: p.allergy || "Không",
-        status: p.status || "Chưa điểm danh",
+        status: p.status || "Đang học",
         fatherName: p.fatherName || "",
         fatherBirthDate: p.fatherBirthDate || "",
         fatherJob: p.fatherJob || "",
@@ -147,7 +168,7 @@ export async function PATCH(request: Request) {
         { error: "Không có quyền với hồ sơ của trường khác" },
         { status: 403 },
       );
-    const values: Record<string, string> = {};
+    const values: Record<string, string | number | null> = {};
     for (const key of [
       "name",
       "className",
@@ -167,6 +188,16 @@ export async function PATCH(request: Request) {
       "zaloPhone",
     ]) {
       if (typeof p[key] === "string") values[key] = p[key] as string;
+    }
+    if ("classId" in p) {
+      const moved = await resolveClass(user, p.classId);
+      if (moved === undefined)
+        return Response.json(
+          { error: "Lớp không thuộc phạm vi bạn phụ trách" },
+          { status: 403 },
+        );
+      values.classId = moved?.id ?? null;
+      if (moved) values.className = moved.name;
     }
     const [child] = await getDb()
       .update(children)
