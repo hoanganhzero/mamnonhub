@@ -336,7 +336,7 @@ export default function Home() {
           )}
         </div>
         <div className="mobile-nav">
-          {navItems.slice(0, 5).map(([i, n]) => (
+          {navItems.map(([i, n]) => (
             <button
               className={active === n ? "on" : ""}
               key={n}
@@ -1284,7 +1284,15 @@ function SchoolSetup({ ping }: { ping: (s: string) => void }) {
         <div className="row">
           <label>
             Tên trường
-            <input name="name" defaultValue={school.name} required />
+            <input
+              value={school.name}
+              readOnly
+              disabled
+              title="Tên trường do quản trị hệ thống đặt"
+            />
+            <small className="field-note">
+              Muốn đổi tên trường, liên hệ quản trị hệ thống.
+            </small>
           </label>
           <label>
             Năm học
@@ -1409,7 +1417,11 @@ function SchoolSetup({ ping }: { ping: (s: string) => void }) {
                   <b>{x.name}</b>
                 </td>
                 <td>{x.address}</td>
-                <td>Đang hoạt động</td>
+                <td>
+                  <span className={x.status === "active" ? "tag ok" : "tag warn"}>
+                    {x.status === "active" ? "Đang hoạt động" : "Tạm dừng"}
+                  </span>
+                </td>
                 <td>
                   <div className="user-actions">
                     <button className="editbtn" onClick={() => openStructure("campus", x)}>Sửa</button>
@@ -1847,6 +1859,7 @@ type School = {
   code: string;
   name: string;
   academicYear: string;
+  address?: string;
   status: string;
 };
 function SchoolManager({
@@ -1858,6 +1871,7 @@ function SchoolManager({
 }) {
   const [rows, setRows] = useState<School[]>([]),
     [open, setOpen] = useState(false),
+    [editingSchool, setEditingSchool] = useState<School | null>(null),
     [error, setError] = useState("");
   const load = () =>
     fetch("/api/schools")
@@ -1884,6 +1898,27 @@ function SchoolManager({
     setOpen(false);
     await load();
     ping("Đã tạo trường và vùng dữ liệu riêng");
+  }
+  async function saveSchool(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!editingSchool) return;
+    setError("");
+    const r = await fetch("/api/schools", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          id: editingSchool.id,
+          ...Object.fromEntries(new FormData(e.currentTarget)),
+        }),
+      }),
+      d = await r.json();
+    if (!r.ok) {
+      setError(d.error || "Không thể cập nhật trường");
+      return;
+    }
+    setEditingSchool(null);
+    await load();
+    ping("Đã cập nhật thông tin trường");
   }
   async function toggle(s: School) {
     await fetch("/api/schools", {
@@ -1935,6 +1970,15 @@ function SchoolManager({
                 <td>{s.academicYear}</td>
                 <td>{s.status === "active" ? "Đang hoạt động" : "Đã khóa"}</td>
                 <td>
+                  <button
+                    className="editbtn"
+                    onClick={() => {
+                      setError("");
+                      setEditingSchool(s);
+                    }}
+                  >
+                    Sửa
+                  </button>
                   <button className="editbtn" onClick={() => toggle(s)}>
                     {s.status === "active" ? "Khóa trường" : "Mở lại"}
                   </button>
@@ -1976,6 +2020,44 @@ function SchoolManager({
             </div>
             {error && <div className="auth-error">⚠ {error}</div>}
             <button className="save">Tạo trường</button>
+          </form>
+        </div>
+      )}
+      {editingSchool && (
+        <div className="back">
+          <form className="modal" onSubmit={saveSchool}>
+            <button
+              type="button"
+              className="x"
+              onClick={() => setEditingSchool(null)}
+            >
+              ×
+            </button>
+            <i className="big">
+              <ChibiIcon icon="🏫" />
+            </i>
+            <h2>Sửa trường {editingSchool.code}</h2>
+            <p>Thay đổi áp dụng cho mọi tài khoản của trường.</p>
+            <label>
+              Tên trường
+              <input name="name" defaultValue={editingSchool.name} required />
+            </label>
+            <div className="row">
+              <label>
+                Năm học
+                <input
+                  name="academicYear"
+                  defaultValue={editingSchool.academicYear}
+                  required
+                />
+              </label>
+              <label>
+                Địa chỉ
+                <input name="address" defaultValue={editingSchool.address || ""} />
+              </label>
+            </div>
+            {error && <p className="form-error">{error}</p>}
+            <button className="save">Lưu thay đổi</button>
           </form>
         </div>
       )}
@@ -6581,7 +6663,6 @@ function Title({ title, sub }: { title: string; sub: string }) {
         <h2>{title}</h2>
         <p>{sub}</p>
       </div>
-      <button>Xem tất cả →</button>
     </div>
   );
 }

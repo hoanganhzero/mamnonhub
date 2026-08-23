@@ -411,3 +411,21 @@ td{font-size:14px;padding:10px}
 .class-mascot-icon{font-style:normal;font-size:30px}
 .class-motto{font-style:italic;color:#6a7f7a}
 @media(max-width:700px){.class-hero-inner{gap:11px}.class-mascot{font-size:40px}.theme-row{grid-template-columns:1fr 1fr}}
+
+/* ── Cuộn được ở mọi nơi bị che ── */
+/* Thanh bên nhiều mục (giáo viên có 8) phải cuộn dọc được trên màn thấp */
+.shell>aside{overflow-y:auto;overscroll-behavior:contain}
+.shell>aside nav{flex:none}
+.shell>aside .help{margin-top:auto;flex:none}
+/* Modal cao hơn màn hình: cuộn trong modal ở mọi cỡ màn, không chỉ mobile */
+.back{overflow-y:auto}
+.modal{max-height:92vh;overflow-y:auto;overscroll-behavior:contain}
+/* Bảng việc cần xem từ chuông */
+.alert-panel{max-height:min(70vh,520px);overflow-y:auto}
+/* Mobile: hiện đủ mọi mục, cuộn ngang khi chật thay vì cắt mất mục cuối */
+@media(max-width:700px){
+  .mobile-nav{justify-content:flex-start;overflow-x:auto;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
+  .mobile-nav button{flex:0 0 auto;min-width:64px;padding:0 6px}
+}
+.field-note{display:block;font-weight:600;color:var(--muted);font-size:12px;margin-top:5px}
+.setup-form input:disabled{background:#eef1ee;color:#7d8b88;cursor:not-allowed}

@@ -95,7 +95,9 @@ export async function PATCH(request: Request) {
         return Response.json({ error: "Bộ màu không hợp lệ" }, { status: 400 });
       values.theme = p.theme;
     }
-    if (p.name?.trim()) values.name = p.name.trim();
+    // Tên trường là định danh do quản trị tối cao đặt khi cấp trường.
+    if (p.name?.trim() && actor.role === "superadmin")
+      values.name = p.name.trim();
     if (typeof p.address === "string") values.address = p.address.trim();
     if (p.academicYear) values.academicYear = p.academicYear;
     if (
@@ -104,6 +106,14 @@ export async function PATCH(request: Request) {
       ["active", "locked"].includes(p.status)
     )
       values.status = p.status;
+    if (!Object.keys(values).length) {
+      const [school] = await getDb()
+        .select()
+        .from(schools)
+        .where(eq(schools.id, targetId))
+        .limit(1);
+      return Response.json({ school });
+    }
     const [school] = await getDb()
       .update(schools)
       .set(values)
