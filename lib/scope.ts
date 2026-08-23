@@ -1,5 +1,5 @@
 import type { SQL } from "drizzle-orm";
-import { and, asc, eq, inArray, isNull, ne, or } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, notInArray, or } from "drizzle-orm";
 import { getDb } from "../db";
 import { childGuardians, children, classes, users } from "../db/schema";
 
@@ -31,8 +31,8 @@ export type ChildScope = {
   classId: number | null;
 };
 
-/** Trẻ đã nghỉ học (xóa mềm) không xuất hiện trong bất kỳ phạm vi nào. */
-const enrolled = ne(children.status, "Đã nghỉ học");
+/** Trẻ đã nghỉ học hoặc đã tốt nghiệp không xuất hiện trong bất kỳ phạm vi nào. */
+const enrolled = notInArray(children.status, ["Đã nghỉ học", "Đã tốt nghiệp"]);
 
 function listChildren(where?: SQL) {
   return getDb()

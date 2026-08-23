@@ -1,3 +1,4 @@
+import { env } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { sessions, users } from "../../../db/schema";
@@ -39,9 +40,15 @@ export async function POST(request: Request) {
         .from(users)
         .where(eq(users.username, username))
         .limit(1);
+      // Mật khẩu khởi tạo tài khoản quản trị tối cao: đặt qua biến môi trường
+      // SUPERADMIN_BOOTSTRAP_PASSWORD khi triển khai; chuỗi mặc định chỉ dành
+      // cho lần chạy đầu và nên đổi ngay sau khi đăng nhập.
+      const bootstrapPassword =
+        (env as { SUPERADMIN_BOOTSTRAP_PASSWORD?: string })
+          .SUPERADMIN_BOOTSTRAP_PASSWORD || "MamNon@2026!";
       if (
         username === "admin" &&
-        p.password === "MamNon@2026!" &&
+        p.password === bootstrapPassword &&
         (!found.length || !found[0].passwordHash.startsWith("v2$"))
       ) {
         const salt = makeSalt(),

@@ -429,3 +429,13 @@ td{font-size:14px;padding:10px}
 }
 .field-note{display:block;font-weight:600;color:var(--muted);font-size:12px;margin-top:5px}
 .setup-form input:disabled{background:#eef1ee;color:#7d8b88;cursor:not-allowed}
+
+/* ── Kết chuyển năm học + tiện ích superadmin ── */
+.promo-panel{margin-top:17px}
+.promo-rows{display:flex;flex-direction:column;gap:9px;margin-bottom:14px}
+.promo-row{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid var(--line);border-radius:12px;padding:11px 14px}
+.promo-row b{display:block;font-size:15px}
+.promo-row small{display:block;font-size:12.5px;color:var(--muted);margin-top:2px}
+.promo-row select{border:1px solid #dfe7e3;border-radius:10px;background:#fbfcfa;color:var(--ink);font:600 14px inherit;padding:9px;min-height:44px;max-width:220px}
+.system-health .outline{margin-top:10px}
+@media(max-width:700px){.promo-row{flex-direction:column;align-items:stretch}.promo-row select{max-width:none}}

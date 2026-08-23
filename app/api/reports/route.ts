@@ -45,7 +45,9 @@ export async function GET(request: Request) {
         .from(children)
         .where(eq(children.schoolId, schoolId)),
     ]);
-    const activeChildren = childRows.filter((x) => x.status !== "Đã nghỉ học");
+    const activeChildren = childRows.filter(
+      (x) => !["Đã nghỉ học", "Đã tốt nghiệp"].includes(x.status),
+    );
     const childIds = activeChildren.map((x) => x.id);
 
     const [marks, incidentRows, postRows, notices, reads] = await Promise.all([

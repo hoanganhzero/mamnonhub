@@ -62,7 +62,7 @@ export default function Home() {
       items: { kind: string; label: string; count: number; target: string }[];
     }>({ total: 0, items: [] }),
     [alertsOpen, setAlertsOpen] = useState(false),
-    [schoolBrand, setSchoolBrand] = useState<any>(null),
+    [schoolBrand, setSchoolBrand] = useState<SchoolBrand | null>(null),
     [authReady, setAuthReady] = useState(false);
   useEffect(() => {
     fetch("/api/auth")
@@ -84,11 +84,14 @@ export default function Home() {
       .catch(() => setAuthReady(true));
   }, []);
   useEffect(() => {
-    if (authUser?.schoolId)
-      fetch("/api/schools")
-        .then((r) => r.json())
-        .then((d) => setSchoolBrand(d.schools?.[0] || null));
-    else setSchoolBrand(null);
+    if (!authUser?.schoolId) return;
+    let live = true;
+    fetch("/api/schools")
+      .then((r) => r.json())
+      .then((d) => live && setSchoolBrand(d.schools?.[0] || null));
+    return () => {
+      live = false;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authUser?.schoolId, active]);
   const ping = (s: string) => {
@@ -286,6 +289,7 @@ export default function Home() {
                   body: JSON.stringify({ action: "logout" }),
                 });
                 setAuthUser(null);
+                setSchoolBrand(null);
                 setAlerts({ total: 0, items: [] });
                 setAlertsOpen(false);
               }}
@@ -366,6 +370,14 @@ export default function Home() {
   );
 }
 
+type SchoolBrand = {
+  id: number;
+  name: string;
+  theme?: string;
+  logoKey?: string | null;
+  bannerKey?: string | null;
+  academicYear?: string;
+};
 type AuthUser = {
   id: number;
   username: string;
@@ -509,6 +521,7 @@ function ProfileModal({
     const f = new FormData(e.currentTarget),
       body = Object.fromEntries(f);
     const file = f.get("avatar");
+    let avatarKey = user.avatarKey;
     if (file instanceof File && file.size) {
       const fd = new FormData();
       fd.set("file", file);
@@ -519,7 +532,7 @@ function ProfileModal({
         setError(ud.error);
         return;
       }
-      user = ud.user;
+      avatarKey = ud.user.avatarKey;
     }
     const r = await fetch("/api/auth", {
         method: "POST",
@@ -531,7 +544,7 @@ function ProfileModal({
       setError(d.error);
       return;
     }
-    updated({ ...d.user, avatarKey: user.avatarKey });
+    updated({ ...d.user, avatarKey });
     close();
   }
   async function password(e: React.FormEvent<HTMLFormElement>) {
@@ -941,6 +954,58 @@ function SuperAdmin({
             ✓ Dữ liệu từng trường được phân tách và kiểm soát theo quyền truy
             cập.
           </small>
+          <button
+            className="outline"
+            onClick={async () => {
+              const r = await fetch("/api/backup");
+              if (!r.ok) {
+                const d = await r.json();
+                ping(d.error || "Không tải được bản sao lưu");
+                return;
+              }
+              const blob = await r.blob(),
+                url = URL.createObjectURL(blob),
+                a = document.createElement("a");
+              a.href = url;
+              a.download = `mamnonhub-backup-${vnToday()}.json`;
+              a.click();
+              URL.revokeObjectURL(url);
+              ping("Đã tải bản sao lưu toàn hệ thống");
+            }}
+          >
+            ⇩ Tải bản sao lưu toàn bộ dữ liệu
+          </button>
+          <button
+            className="outline"
+            onClick={async () => {
+              if (
+                !confirm(
+                  "Tạo trường DEMO với 20 trẻ, 2 lớp, 2 giáo viên, 5 phụ huynh để bấm thử?",
+                )
+              )
+                return;
+              const r = await fetch("/api/seed", { method: "POST" }),
+                d = await r.json();
+              if (!r.ok) {
+                ping(d.error || "Chưa tạo được dữ liệu demo");
+                return;
+              }
+              await load();
+              alert(
+                `Đã tạo trường ${d.school.name}.
+` +
+                  `Quản trị: ${d.accounts.admin}
+` +
+                  `Giáo viên: ${d.accounts.teachers.join(", ")}
+` +
+                  `Phụ huynh: ${d.accounts.parents.join(", ")}
+` +
+                  `Mật khẩu chung: ${d.accounts.password}`,
+              );
+            }}
+          >
+            🧸 Tạo trường demo để bấm thử
+          </button>
         </aside>
       </div>
     </>
@@ -1163,8 +1228,175 @@ type ClassRow = {
   teacherId?: number | null;
   status: string;
 };
+
+type PromoClass = {
+  id: number;
+  name: string;
+  ageGroup: string;
+  childCount: number;
+};
+
+/** Kết chuyển năm học: mỗi lớp chọn đích đến, chạy một lần vào cuối hè. */
+function Promotion({ ping }: { ping: (s: string) => void }) {
+  const [open, setOpen] = useState(false),
+    [rows, setRows] = useState<PromoClass[]>([]),
+    [year, setYear] = useState(""),
+    [nextYear, setNextYear] = useState(""),
+    [moves, setMoves] = useState<Record<number, string>>({}),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!open) return;
+    let live = true;
+    fetch("/api/promotion")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!live || !d) return;
+        setRows(d.classes || []);
+        setYear(d.academicYear || "");
+        const match = String(d.academicYear || "").match(/(\d{4})\D+(\d{4})/);
+        setNextYear(
+          match ? `${Number(match[1]) + 1}–${Number(match[2]) + 1}` : "",
+        );
+        setMoves({});
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [open]);
+
+  async function run() {
+    const chosen = rows.filter((c) => moves[c.id] && moves[c.id] !== "keep");
+    if (!chosen.length) {
+      setError("Chưa chọn hướng chuyển cho lớp nào");
+      return;
+    }
+    if (
+      !confirm(
+        `Kết chuyển sang năm học ${nextYear}?\n` +
+          chosen
+            .map((c) =>
+              moves[c.id] === "graduate"
+                ? `• ${c.name} (${c.childCount} trẻ) → RA TRƯỜNG`
+                : `• ${c.name} (${c.childCount} trẻ) → ${rows.find((x) => x.id === Number(moves[c.id]))?.name}`,
+            )
+            .join("\n") +
+          "\nThao tác này không tự hoàn tác được.",
+      )
+    )
+      return;
+    setError("");
+    setBusy(true);
+    const r = await fetch("/api/promotion", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          academicYear: nextYear,
+          moves: rows.map((c) => ({
+            fromClassId: c.id,
+            to: moves[c.id] || "keep",
+          })),
+        }),
+      }),
+      d = await r.json();
+    setBusy(false);
+    if (!r.ok) {
+      setError(d.error || "Chưa kết chuyển được");
+      return;
+    }
+    setOpen(false);
+    ping(
+      `Đã sang năm học ${d.academicYear}: ${d.moved} trẻ chuyển lớp, ${d.graduated} ra trường`,
+    );
+  }
+
+  return (
+    <div className="panel promo-panel">
+      <div className="care-head">
+        <div>
+          <b>Kết chuyển năm học</b>
+          <small>
+            Cuối hè: chuyển cả lớp lên nhóm tuổi mới hoặc cho lớp lớn ra trường
+          </small>
+        </div>
+        <button className="pill-action" onClick={() => setOpen(true)}>
+          Bắt đầu kết chuyển
+        </button>
+      </div>
+      {open && (
+        <div className="back">
+          <div className="modal wide">
+            <button type="button" className="x" onClick={() => setOpen(false)}>
+              ×
+            </button>
+            <i className="big">
+              <ChibiIcon icon="🏫" />
+            </i>
+            <h2>Kết chuyển năm học</h2>
+            <p>
+              Đang ở năm học <b>{year}</b>. Trẻ ra trường được giữ trọn hồ sơ,
+              chỉ không còn hiện trong danh sách lớp.
+            </p>
+            <label>
+              Năm học mới
+              <input
+                value={nextYear}
+                onChange={(e) => setNextYear(e.target.value)}
+                placeholder="2027–2028"
+              />
+            </label>
+            <div className="promo-rows">
+              {rows.map((c) => (
+                <div className="promo-row" key={c.id}>
+                  <div>
+                    <b>{c.name}</b>
+                    <small>
+                      {c.childCount} trẻ{c.ageGroup ? ` · ${c.ageGroup}` : ""}
+                    </small>
+                  </div>
+                  <select
+                    value={moves[c.id] || "keep"}
+                    onChange={(e) =>
+                      setMoves((s) => ({ ...s, [c.id]: e.target.value }))
+                    }
+                  >
+                    <option value="keep">Giữ nguyên lớp</option>
+                    <option value="graduate">🎓 Ra trường</option>
+                    {rows
+                      .filter((x) => x.id !== c.id)
+                      .map((x) => (
+                        <option key={x.id} value={x.id}>
+                          Chuyển sang {x.name}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              ))}
+            </div>
+            {!rows.length && (
+              <div className="empty">Trường chưa có lớp đang hoạt động.</div>
+            )}
+            {error && <p className="form-error">{error}</p>}
+            <button className="save" onClick={run} disabled={busy || !rows.length}>
+              {busy ? "Đang kết chuyển…" : `Kết chuyển sang ${nextYear || "năm học mới"}`}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+type SchoolInfo = School & {
+  address?: string;
+  theme?: string;
+  logoKey?: string | null;
+  bannerKey?: string | null;
+};
 function SchoolSetup({ ping }: { ping: (s: string) => void }) {
-  const [school, setSchool] = useState<any>(null),
+  const [school, setSchool] = useState<SchoolInfo | null>(null),
     [campuses, setCampuses] = useState<Campus[]>([]),
     [classes, setClasses] = useState<ClassRow[]>([]),
     [teachers, setTeachers] = useState<{ id: number; fullName: string }[]>([]),
@@ -1172,18 +1404,23 @@ function SchoolSetup({ ping }: { ping: (s: string) => void }) {
     [editing, setEditing] = useState<Campus | ClassRow | null>(null),
     [uploading, setUploading] = useState(""),
     [error, setError] = useState("");
-  const load = async () => {
-    const [a, b] = await Promise.all([
+  const load = () =>
+    Promise.all([
       fetch("/api/schools").then((r) => r.json()),
       fetch("/api/school-structure").then((r) => r.json()),
-    ]);
-    setSchool(a.schools?.[0] || null);
-    setCampuses(b.campuses || []);
-    setClasses(b.classes || []);
-    setTeachers((b.teachers || []).filter((x: { status: string }) => x.status === "active"));
-  };
+    ]).then(([a, b]) => {
+      setSchool(a.schools?.[0] || null);
+      setCampuses(b.campuses || []);
+      setClasses(b.classes || []);
+      setTeachers(
+        (b.teachers || []).filter(
+          (x: { status: string }) => x.status === "active",
+        ),
+      );
+    });
   useEffect(() => {
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   async function saveSchool(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -1476,6 +1713,7 @@ function SchoolSetup({ ping }: { ping: (s: string) => void }) {
         </table>
         {!classes.length && <div className="empty">Chưa có lớp học.</div>}
       </div>
+      <Promotion ping={ping} />
       {modal && (
         <div className="back">
           <form className="modal" onSubmit={saveStructure}>
