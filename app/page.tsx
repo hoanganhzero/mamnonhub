@@ -151,6 +151,8 @@ export default function Home() {
             ["👩🏻‍🏫", "Tài khoản"],
             ["🏫", "Thiết lập"],
             ["🍲", "Thực đơn"],
+            ["💰", "Học phí"],
+            ["📊", "Báo cáo"],
             ["📣", "Thông báo"],
           ]
         : authUser.role === "teacher"
@@ -172,6 +174,7 @@ export default function Home() {
               ["📣", "Thông báo"],
               ["💗", "Sức khỏe"],
               ["🍲", "Thực đơn"],
+              ["💰", "Học phí"],
             ];
   return (
     <main className="shell">
@@ -890,6 +893,8 @@ function SuperAdmin({
         <MenuBoard ping={ping} editable />
       </>
     );
+  if (active === "Học phí") return <FeeManager ping={ping} />;
+  if (active === "Báo cáo") return <ReportBoard />;
   if (!data)
     return (
       <div className="panel empty">Đang tổng hợp dữ liệu toàn hệ thống…</div>
@@ -2578,6 +2583,7 @@ function Attendance({ ping }: { ping: (s: string) => void }) {
       {},
     ),
     [leaves, setLeaves] = useState<LeaveRow[]>([]),
+    [pickups, setPickups] = useState<PickupNotice[]>([]),
     [saving, setSaving] = useState(false),
     [loading, setLoading] = useState(true),
     [tick, setTick] = useState(0);
@@ -2616,6 +2622,10 @@ function Attendance({ ping }: { ping: (s: string) => void }) {
   }, [date, classId, tick]);
   useEffect(() => {
     let live = true;
+    fetch(`/api/pickup?date=${date}`)
+      .then((r) => (r.ok ? r.json() : { notices: [] }))
+      .then((d) => live && setPickups(d.notices || []))
+      .catch(() => {});
     fetch("/api/leave-requests")
       .then((r) => (r.ok ? r.json() : { requests: [] }))
       .then((d) => {
@@ -2630,7 +2640,8 @@ function Attendance({ ping }: { ping: (s: string) => void }) {
     return () => {
       live = false;
     };
-  }, [tick]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tick, date]);
 
   const reload = () => setTick((t) => t + 1);
   const pick = (childId: number, status: string) =>
@@ -2737,6 +2748,29 @@ function Attendance({ ping }: { ping: (s: string) => void }) {
               <button className="reject" onClick={() => review(x.id, "Từ chối")}>
                 Từ chối
               </button>
+            </div>
+          ))}
+        </div>
+      )}
+      {pickups.length > 0 && (
+        <div className="panel leave-inbox">
+          <Title
+            title="Người đón hôm nay"
+            sub={`${pickups.length} lượt phụ huynh đã báo trước`}
+          />
+          {pickups.map((x) => (
+            <div className="leave-line" key={x.id}>
+              <div>
+                <b>
+                  {x.childName} — {x.personName}
+                  {x.relation ? ` (${x.relation})` : ""}
+                </b>
+                <small>
+                  {x.expectedTime ? `Khoảng ${x.expectedTime}` : "Chưa rõ giờ"}
+                  {x.phone ? ` · ${x.phone}` : ""}
+                  {x.note ? ` · ${x.note}` : ""}
+                </small>
+              </div>
             </div>
           ))}
         </div>
@@ -4030,6 +4064,7 @@ const CARE_TABS = [
   ["daily", "🍚 Sổ hằng ngày"],
   ["incident", "💗 Sự cố · y tế"],
   ["health", "📊 Cân đo"],
+  ["assess", "⭐ Đánh giá"],
   ["menu", "🍲 Thực đơn"],
 ];
 
@@ -4056,6 +4091,7 @@ function CareArea({ ping }: { ping: (s: string) => void }) {
       {tab === "daily" && <Care ping={ping} />}
       {tab === "incident" && <Incidents ping={ping} />}
       {tab === "health" && <HealthBoard ping={ping} />}
+      {tab === "assess" && <AssessmentBoard ping={ping} />}
       {tab === "menu" && <MenuBoard ping={ping} />}
     </>
   );
@@ -4188,6 +4224,8 @@ function GrowthChart({
 function ParentHealth() {
   const [rows, setRows] = useState<HealthChild[]>([]),
     [picked, setPicked] = useState<number | null>(null),
+    [assess, setAssess] = useState<AssessmentRow[]>([]),
+    [domains, setDomains] = useState<AssessDomain[]>([]),
     [loading, setLoading] = useState(true);
   useEffect(() => {
     let live = true;
@@ -4200,6 +4238,14 @@ function ParentHealth() {
         setLoading(false);
       })
       .catch(() => live && setLoading(false));
+    fetch("/api/assessments")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!live || !d) return;
+        setAssess(d.assessments || []);
+        setDomains(d.domains || []);
+      })
+      .catch(() => {});
     return () => {
       live = false;
     };
@@ -4294,6 +4340,35 @@ function ParentHealth() {
               <div className="empty">Trường chưa nhập lần cân đo nào.</div>
             )}
           </div>
+          {assess.filter((a) => a.childId === child.childId).length > 0 && (
+            <div className="panel">
+              <Title
+                title="Đánh giá của cô giáo"
+                sub="Theo 5 lĩnh vực phát triển"
+              />
+              {assess
+                .filter((a) => a.childId === child.childId)
+                .map((a) => (
+                  <div className="assess-card" key={a.period}>
+                    <b>{a.period}</b>
+                    <div className="assess-domains">
+                      {domains.map((d) => {
+                        const v = a[d.key as keyof AssessmentRow] as string;
+                        return v ? (
+                          <span
+                            key={d.key}
+                            className={`leave-status ${v === "Tốt" ? "ok" : v === "Đạt" ? "wait" : "no"}`}
+                          >
+                            {d.label}: {v}
+                          </span>
+                        ) : null;
+                      })}
+                    </div>
+                    {a.comment && <p>{a.comment}</p>}
+                  </div>
+                ))}
+            </div>
+          )}
         </>
       )}
       {!loading && !rows.length && (
@@ -4960,6 +5035,7 @@ function ParentLeave({ ping }: { ping: (s: string) => void }) {
         ))}
         {!requests.length && <div className="empty">Chưa gửi đơn nào.</div>}
       </div>
+      {children.length > 0 && <PickupSection childList={children} ping={ping} />}
     </>
   );
 }
@@ -5054,7 +5130,872 @@ function Parent({
   if (active === "Tin nhắn") return <Messages ping={ping} parentView />;
   if (active === "Sức khỏe") return <ParentHealth />;
   if (active === "Thực đơn") return <MenuBoard ping={ping} />;
+  if (active === "Học phí") return <ParentFees ping={ping} />;
   return <ParentToday ping={ping} />;
+}
+
+
+/* ── Giai đoạn 3: học phí, đánh giá, người đón, báo cáo ── */
+function money(n: number) {
+  return `${(n || 0).toLocaleString("vi-VN")} ₫`;
+}
+type FeeSettingsRow = {
+  tuitionMonthly?: number;
+  mealPerDay?: number;
+  otherFee?: number;
+  otherLabel?: string;
+  bankCode: string;
+  bankAccount: string;
+  bankHolder: string;
+  note: string;
+};
+type InvoiceRow = {
+  id: number;
+  childId: number;
+  childName: string;
+  className: string;
+  month: string;
+  tuition: number;
+  mealDays: number;
+  mealPerDay: number;
+  otherFee: number;
+  otherLabel: string;
+  total: number;
+  status: string;
+  paidAt: string;
+};
+function vietQr(s: FeeSettingsRow, inv: InvoiceRow) {
+  if (!s.bankCode || !s.bankAccount) return "";
+  const info = `HP ${inv.month} ${inv.childName}`.replace(/[^\p{L}\p{N} ]/gu, "");
+  return `https://img.vietqr.io/image/${s.bankCode}-${s.bankAccount}-compact2.jpg?amount=${inv.total}&addInfo=${encodeURIComponent(info)}&accountName=${encodeURIComponent(s.bankHolder)}`;
+}
+
+/** Quản trị trường: biểu phí, phát hành phiếu theo tháng, xác nhận đã đóng. */
+function FeeManager({ ping }: { ping: (s: string) => void }) {
+  const [month, setMonth] = useState(vnToday().slice(0, 7)),
+    [settings, setSettings] = useState<FeeSettingsRow | null>(null),
+    [rows, setRows] = useState<InvoiceRow[]>([]),
+    [busy, setBusy] = useState(false),
+    [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    let live = true;
+    fetch(`/api/fees?month=${month}`)
+      .then((r) => (r.ok ? r.json() : { invoices: [] }))
+      .then((d) => {
+        if (!live) return;
+        setSettings(d.settings);
+        setRows(d.invoices || []);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [month, tick]);
+
+  async function saveSettings(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const f = new FormData(e.currentTarget);
+    const r = await fetch("/api/fees", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          action: "settings",
+          tuitionMonthly: Number(f.get("tuitionMonthly")),
+          mealPerDay: Number(f.get("mealPerDay")),
+          otherFee: Number(f.get("otherFee")),
+          otherLabel: String(f.get("otherLabel")),
+          bankCode: String(f.get("bankCode")),
+          bankAccount: String(f.get("bankAccount")),
+          bankHolder: String(f.get("bankHolder")),
+          note: String(f.get("note")),
+        }),
+      }),
+      d = await r.json();
+    if (!r.ok) {
+      ping(d.error || "Chưa lưu được biểu phí");
+      return;
+    }
+    setSettings(d.settings);
+    ping("Đã lưu biểu phí của trường");
+  }
+
+  async function generate() {
+    setBusy(true);
+    const r = await fetch("/api/fees", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "generate", month }),
+      }),
+      d = await r.json();
+    setBusy(false);
+    if (!r.ok) {
+      ping(d.error || "Chưa phát hành được");
+      return;
+    }
+    setTick((t) => t + 1);
+    ping(`Đã phát hành ${d.generated} phiếu thu tháng ${month}`);
+  }
+
+  async function mark(inv: InvoiceRow, paid: boolean) {
+    const r = await fetch("/api/fees", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: inv.id, status: paid ? "Đã đóng" : "Chưa đóng" }),
+      }),
+      d = await r.json();
+    if (!r.ok) {
+      ping(d.error || "Chưa cập nhật được");
+      return;
+    }
+    setTick((t) => t + 1);
+    ping(paid ? `Đã ghi nhận ${inv.childName} đóng phí` : "Đã mở lại phiếu");
+  }
+
+  const paid = rows.filter((x) => x.status === "Đã đóng");
+  const collected = paid.reduce((s, x) => s + x.total, 0);
+  const expected = rows.reduce((s, x) => s + x.total, 0);
+  return (
+    <>
+      <PageHead
+        icon="💰"
+        title="Học phí"
+        sub="Tiền ăn tính theo số ngày có mặt thật trong sổ điểm danh"
+      />
+      <form className="panel fee-settings" onSubmit={saveSettings}>
+        <Title title="Biểu phí của trường" sub="Áp dụng khi phát hành phiếu thu" />
+        <div className="row3">
+          <label>
+            Học phí tháng (₫)
+            <input name="tuitionMonthly" inputMode="numeric" defaultValue={settings?.tuitionMonthly ?? ""} key={`t${settings?.tuitionMonthly}`} />
+          </label>
+          <label>
+            Tiền ăn mỗi ngày (₫)
+            <input name="mealPerDay" inputMode="numeric" defaultValue={settings?.mealPerDay ?? ""} key={`m${settings?.mealPerDay}`} />
+          </label>
+          <label>
+            Phí khác (₫)
+            <input name="otherFee" inputMode="numeric" defaultValue={settings?.otherFee ?? ""} key={`o${settings?.otherFee}`} />
+          </label>
+        </div>
+        <div className="row3">
+          <label>
+            Tên phí khác
+            <input name="otherLabel" defaultValue={settings?.otherLabel ?? "Phí khác"} key={`l${settings?.otherLabel}`} />
+          </label>
+          <label>
+            Mã ngân hàng (VietQR)
+            <input name="bankCode" placeholder="VCB, TCB, MB…" defaultValue={settings?.bankCode ?? ""} key={`b${settings?.bankCode}`} />
+          </label>
+          <label>
+            Số tài khoản
+            <input name="bankAccount" defaultValue={settings?.bankAccount ?? ""} key={`a${settings?.bankAccount}`} />
+          </label>
+        </div>
+        <div className="row">
+          <label>
+            Chủ tài khoản
+            <input name="bankHolder" defaultValue={settings?.bankHolder ?? ""} key={`h${settings?.bankHolder}`} />
+          </label>
+          <label>
+            Ghi chú trên phiếu
+            <input name="note" defaultValue={settings?.note ?? ""} key={`n${settings?.note}`} />
+          </label>
+        </div>
+        <button className="save">Lưu biểu phí</button>
+      </form>
+
+      <div className="daybar">
+        <label>
+          Tháng
+          <input type="month" value={month} max={vnToday().slice(0, 7)} onChange={(e) => e.target.value && setMonth(e.target.value)} />
+        </label>
+        <button className="ghost" onClick={generate} disabled={busy}>
+          {busy ? "Đang phát hành…" : `Phát hành phiếu tháng ${month}`}
+        </button>
+        <p className="daybar-note saved-note">
+          Đã thu {money(collected)} / {money(expected)} · {paid.length}/{rows.length} phiếu đã đóng. Phát hành lại sẽ tính lại ngày ăn nhưng giữ nguyên phiếu đã đóng.
+        </p>
+      </div>
+      <div className="panel tablewrap">
+        <table>
+          <thead>
+            <tr>
+              <th>TRẺ</th>
+              <th>HỌC PHÍ</th>
+              <th>NGÀY ĂN</th>
+              <th>TIỀN ĂN</th>
+              <th>KHÁC</th>
+              <th>TỔNG</th>
+              <th>TRẠNG THÁI</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((x) => (
+              <tr key={x.id}>
+                <td>
+                  <b>{x.childName}</b>
+                  <small>{x.className}</small>
+                </td>
+                <td>{money(x.tuition)}</td>
+                <td>{x.mealDays} ngày</td>
+                <td>{money(x.mealDays * x.mealPerDay)}</td>
+                <td>{money(x.otherFee)}</td>
+                <td>
+                  <b>{money(x.total)}</b>
+                </td>
+                <td>
+                  {x.status === "Đã đóng" ? (
+                    <button className="leave-status ok as-btn" onClick={() => mark(x, false)} title={x.paidAt}>
+                      Đã đóng ✓
+                    </button>
+                  ) : (
+                    <button className="pill-action" onClick={() => mark(x, true)}>
+                      Ghi nhận đã đóng
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {!rows.length && (
+          <div className="empty">
+            Chưa có phiếu thu tháng này. Lưu biểu phí rồi bấm “Phát hành”.
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+/** Phụ huynh: phiếu thu của con kèm mã QR chuyển khoản đúng số tiền. */
+function ParentFees({ ping }: { ping: (s: string) => void }) {
+  const [rows, setRows] = useState<InvoiceRow[]>([]),
+    [bank, setBank] = useState<FeeSettingsRow | null>(null),
+    [qrFor, setQrFor] = useState<number | null>(null);
+  useEffect(() => {
+    let live = true;
+    fetch("/api/fees")
+      .then((r) => (r.ok ? r.json() : { invoices: [] }))
+      .then((d) => {
+        if (!live) return;
+        setRows(d.invoices || []);
+        setBank(d.settings);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, []);
+  const owing = rows.filter((x) => x.status !== "Đã đóng");
+  return (
+    <>
+      <PageHead
+        icon="💰"
+        title="Học phí"
+        sub={
+          owing.length
+            ? `${owing.length} phiếu chưa đóng · ${money(owing.reduce((s, x) => s + x.total, 0))}`
+            : "Đã đóng đủ, cảm ơn gia đình"
+        }
+      />
+      <div className="journal-list">
+        {rows.map((x) => (
+          <article className="panel invoice" key={x.id}>
+            <header>
+              <div>
+                <small>
+                  Tháng {x.month} · {x.childName} · {x.className}
+                </small>
+                <h2>{money(x.total)}</h2>
+              </div>
+              <span className={`leave-status ${x.status === "Đã đóng" ? "ok" : "wait"}`}>
+                {x.status}
+              </span>
+            </header>
+            <div className="invoice-lines">
+              <span>
+                Học phí <b>{money(x.tuition)}</b>
+              </span>
+              <span>
+                Tiền ăn {x.mealDays} ngày × {money(x.mealPerDay)} <b>{money(x.mealDays * x.mealPerDay)}</b>
+              </span>
+              {x.otherFee > 0 && (
+                <span>
+                  {x.otherLabel || "Phí khác"} <b>{money(x.otherFee)}</b>
+                </span>
+              )}
+            </div>
+            {x.status !== "Đã đóng" && bank?.bankCode && bank?.bankAccount && (
+              <div className="qr-zone">
+                {qrFor === x.id ? (
+                  <>
+                    <img src={vietQr(bank, x)} alt={`QR chuyển khoản ${money(x.total)}`} />
+                    <small>
+                      {bank.bankCode} · {bank.bankAccount} · {bank.bankHolder}
+                      <br />
+                      Nội dung: HP {x.month} {x.childName}
+                    </small>
+                  </>
+                ) : (
+                  <button className="pill-action" onClick={() => setQrFor(x.id)}>
+                    Hiện mã QR chuyển khoản
+                  </button>
+                )}
+              </div>
+            )}
+            {x.status !== "Đã đóng" && bank && !bank.bankCode && bank.note && (
+              <p className="daybar-note">{bank.note}</p>
+            )}
+          </article>
+        ))}
+        {!rows.length && (
+          <div className="panel empty">Nhà trường chưa phát hành phiếu thu nào.</div>
+        )}
+      </div>
+    </>
+  );
+}
+
+type ReportTotals = {
+  children: number;
+  left: number;
+  unassigned: number;
+  marked: number;
+  present: number;
+  incidents: number;
+  incidentsUnacknowledged: number;
+  posts: number;
+  announcements: number;
+  announcementReads: number;
+};
+type ClassReport = {
+  classId: number;
+  name: string;
+  ageGroup: string;
+  childCount: number;
+  markedDays: number;
+  present: number;
+  excused: number;
+  unexcused: number;
+  attendanceRate: number | null;
+  incidents: number;
+  posts: number;
+};
+
+/** Báo cáo tháng cho ban giám hiệu. */
+function ReportBoard() {
+  const [month, setMonth] = useState(vnToday().slice(0, 7)),
+    [totals, setTotals] = useState<ReportTotals | null>(null),
+    [perClass, setPerClass] = useState<ClassReport[]>([]);
+  useEffect(() => {
+    let live = true;
+    fetch(`/api/reports?month=${month}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!live || !d) return;
+        setTotals(d.totals);
+        setPerClass(d.perClass || []);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [month]);
+  const rate = totals?.marked
+    ? Math.round((totals.present / totals.marked) * 100)
+    : null;
+  return (
+    <>
+      <PageHead
+        icon="📊"
+        title="Báo cáo tháng"
+        sub="Chuyên cần, sự cố và mức độ tương tác của từng lớp"
+      />
+      <div className="daybar">
+        <label>
+          Tháng
+          <input type="month" value={month} max={vnToday().slice(0, 7)} onChange={(e) => e.target.value && setMonth(e.target.value)} />
+        </label>
+      </div>
+      {totals && (
+        <section className="stats">
+          <article>
+            <i className="pink">
+              <ChibiIcon icon="🧒" />
+            </i>
+            <div>
+              <small>TRẺ ĐANG HỌC</small>
+              <b>{totals.children}</b>
+              <p>
+                {totals.unassigned ? `${totals.unassigned} chưa xếp lớp` : "Đã xếp lớp đủ"}
+                {totals.left ? ` · ${totals.left} đã nghỉ` : ""}
+              </p>
+            </div>
+          </article>
+          <article>
+            <i className="green">
+              <ChibiIcon icon="🙋" />
+            </i>
+            <div>
+              <small>CHUYÊN CẦN</small>
+              <b>{rate === null ? "—" : `${rate}%`}</b>
+              <p>{totals.present}/{totals.marked} lượt có mặt</p>
+            </div>
+          </article>
+          <article>
+            <i className="yellow">
+              <ChibiIcon icon="💗" />
+            </i>
+            <div>
+              <small>SỰ CỐ Y TẾ</small>
+              <b>{totals.incidents}</b>
+              <p>
+                {totals.incidentsUnacknowledged
+                  ? `${totals.incidentsUnacknowledged} chưa được PH xác nhận`
+                  : "PH đã xác nhận hết"}
+              </p>
+            </div>
+          </article>
+          <article>
+            <i className="blue">
+              <ChibiIcon icon="✎" />
+            </i>
+            <div>
+              <small>KẾT NỐI PHỤ HUYNH</small>
+              <b>{totals.posts}</b>
+              <p>
+                bài nhật ký · {totals.announcementReads} lượt đọc thông báo
+              </p>
+            </div>
+          </article>
+        </section>
+      )}
+      <div className="panel tablewrap">
+        <table>
+          <thead>
+            <tr>
+              <th>LỚP</th>
+              <th>SĨ SỐ</th>
+              <th>CHUYÊN CẦN</th>
+              <th>CÓ PHÉP</th>
+              <th>KHÔNG PHÉP</th>
+              <th>SỰ CỐ</th>
+              <th>BÀI NHẬT KÝ</th>
+            </tr>
+          </thead>
+          <tbody>
+            {perClass.map((x) => (
+              <tr key={x.classId}>
+                <td>
+                  <b>{x.name}</b>
+                  <small>{x.ageGroup}</small>
+                </td>
+                <td>{x.childCount}</td>
+                <td>
+                  {x.attendanceRate === null ? (
+                    <small className="muted-cell">chưa điểm danh</small>
+                  ) : (
+                    <b className={x.attendanceRate >= 90 ? "rate-ok" : "rate-low"}>
+                      {x.attendanceRate}%
+                    </b>
+                  )}
+                </td>
+                <td>{x.excused}</td>
+                <td>{x.unexcused}</td>
+                <td>{x.incidents}</td>
+                <td>{x.posts}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {!perClass.length && (
+          <div className="empty">Trường chưa có lớp nào trong mục Thiết lập.</div>
+        )}
+      </div>
+    </>
+  );
+}
+
+type AssessmentRow = {
+  childId: number;
+  period: string;
+  physical: string;
+  cognitive: string;
+  language: string;
+  social: string;
+  aesthetic: string;
+  comment: string;
+  childName?: string;
+};
+type AssessDomain = { key: string; label: string };
+
+/** Giáo viên nhập đánh giá 5 lĩnh vực theo kỳ, lưu cả lớp một lượt. */
+function AssessmentBoard({ ping }: { ping: (s: string) => void }) {
+  const [domains, setDomains] = useState<AssessDomain[]>([]),
+    [levels, setLevels] = useState<string[]>([]),
+    [childList, setChildList] = useState<{ childId: number; name: string; className: string }[]>([]),
+    [saved, setSaved] = useState<AssessmentRow[]>([]),
+    [period, setPeriod] = useState("Học kỳ 1 · 2026–2027"),
+    [draft, setDraft] = useState<Record<number, Record<string, string>>>({}),
+    [saving, setSaving] = useState(false),
+    [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    let live = true;
+    fetch("/api/assessments")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!live || !d) return;
+        setDomains(d.domains || []);
+        setLevels(d.levels || []);
+        setChildList(d.children || []);
+        setSaved(d.assessments || []);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [tick]);
+
+  // Giá trị hiển thị = phần cô vừa sửa, không có thì lấy bản đã lưu của kỳ này.
+  const valueOf = (childId: number, key: string) => {
+    const edited = draft[childId]?.[key];
+    if (edited !== undefined) return edited;
+    const row = saved.find((x) => x.childId === childId && x.period === period);
+    return (row?.[key as keyof AssessmentRow] as string) || "";
+  };
+  const edit = (childId: number, key: string, value: string) =>
+    setDraft((s) => ({ ...s, [childId]: { ...s[childId], [key]: value } }));
+
+  async function save() {
+    setSaving(true);
+    const r = await fetch("/api/assessments", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          period,
+          items: childList.map((c) => ({
+            childId: c.childId,
+            physical: valueOf(c.childId, "physical"),
+            cognitive: valueOf(c.childId, "cognitive"),
+            language: valueOf(c.childId, "language"),
+            social: valueOf(c.childId, "social"),
+            aesthetic: valueOf(c.childId, "aesthetic"),
+            comment: valueOf(c.childId, "comment"),
+          })),
+        }),
+      }),
+      d = await r.json();
+    setSaving(false);
+    if (!r.ok) {
+      ping(d.error || "Chưa lưu được đánh giá");
+      return;
+    }
+    setDraft({});
+    setTick((t) => t + 1);
+    ping(`Đã lưu đánh giá ${d.saved} trẻ · ${period}`);
+  }
+
+  return (
+    <>
+      <div className="daybar">
+        <label>
+          Kỳ đánh giá
+          <select
+            value={period}
+            onChange={(e) => {
+              setPeriod(e.target.value);
+              setDraft({});
+            }}
+          >
+            {["Học kỳ 1 · 2026–2027", "Học kỳ 2 · 2026–2027", "Cả năm · 2026–2027"].map((x) => (
+              <option key={x}>{x}</option>
+            ))}
+          </select>
+        </label>
+        <p className="daybar-note saved-note">
+          Mỗi lĩnh vực chọn một mức. Bé chưa chọn mục nào sẽ được bỏ qua khi lưu.
+        </p>
+      </div>
+      <div className="panel tablewrap assess-table">
+        <table>
+          <thead>
+            <tr>
+              <th>TRẺ</th>
+              {domains.map((d) => (
+                <th key={d.key}>{d.label.toUpperCase()}</th>
+              ))}
+              <th>NHẬN XÉT CHUNG</th>
+            </tr>
+          </thead>
+          <tbody>
+            {childList.map((c) => (
+              <tr key={c.childId}>
+                <td>
+                  <b>{c.name}</b>
+                  <small>{c.className}</small>
+                </td>
+                {domains.map((d) => (
+                  <td key={d.key}>
+                    <select
+                      value={valueOf(c.childId, d.key)}
+                      onChange={(e) => edit(c.childId, d.key, e.target.value)}
+                    >
+                      <option value="">—</option>
+                      {levels.map((l) => (
+                        <option key={l}>{l}</option>
+                      ))}
+                    </select>
+                  </td>
+                ))}
+                <td>
+                  <input
+                    value={valueOf(c.childId, "comment")}
+                    onChange={(e) => edit(c.childId, "comment", e.target.value)}
+                    placeholder="Nhận xét gửi phụ huynh…"
+                  />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {childList.length > 0 && (
+          <button className="save finish" onClick={save} disabled={saving}>
+            {saving ? "Đang lưu…" : `Lưu đánh giá ${childList.length} trẻ`}
+          </button>
+        )}
+      </div>
+      {!childList.length && <div className="empty">Chưa có hồ sơ trẻ.</div>}
+    </>
+  );
+}
+
+type PickupPerson = {
+  id: number;
+  childId: number;
+  childName: string;
+  name: string;
+  relation: string;
+  phone: string;
+};
+type PickupNotice = {
+  id: number;
+  childId: number;
+  childName: string;
+  className: string;
+  date: string;
+  personName: string;
+  relation: string;
+  phone: string;
+  expectedTime: string;
+  note: string;
+};
+
+/** Phụ huynh: đăng ký người đón cố định và báo người đón cho từng ngày. */
+function PickupSection({
+  childList,
+  ping,
+}: {
+  childList: Child[];
+  ping: (s: string) => void;
+}) {
+  const [persons, setPersons] = useState<PickupPerson[]>([]),
+    [notices, setNotices] = useState<PickupNotice[]>([]),
+    [relations, setRelations] = useState<string[]>([]),
+    [today, setToday] = useState(vnToday()),
+    [error, setError] = useState(""),
+    [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    let live = true;
+    fetch("/api/pickup")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!live || !d) return;
+        setPersons(d.persons || []);
+        setNotices(d.notices || []);
+        setRelations(d.relations || []);
+        if (d.today) setToday(d.today);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [tick]);
+
+  async function post(payload: Record<string, unknown>, okMsg: string) {
+    setError("");
+    const r = await fetch("/api/pickup", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      }),
+      d = await r.json();
+    if (!r.ok) {
+      setError(d.error || "Chưa gửi được");
+      return false;
+    }
+    setTick((t) => t + 1);
+    ping(okMsg);
+    return true;
+  }
+
+  async function addPerson(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const f = new FormData(e.currentTarget),
+      form = e.currentTarget;
+    const ok = await post(
+      {
+        action: "person",
+        childId: Number(f.get("childId")),
+        name: String(f.get("name")),
+        relation: String(f.get("relation")),
+        phone: String(f.get("phone") || ""),
+      },
+      "Đã đăng ký người đón",
+    );
+    if (ok) form.reset();
+  }
+
+  async function addNotice(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const f = new FormData(e.currentTarget),
+      form = e.currentTarget;
+    const [pid, childIdRaw] = String(f.get("person")).split(":");
+    const person = persons.find((x) => x.id === Number(pid));
+    if (!person) {
+      setError("Hãy đăng ký người đón trước");
+      return;
+    }
+    const ok = await post(
+      {
+        action: "notice",
+        childId: Number(childIdRaw),
+        name: person.name,
+        relation: person.relation,
+        phone: person.phone,
+        date: String(f.get("date")),
+        expectedTime: String(f.get("expectedTime") || ""),
+        note: String(f.get("note") || ""),
+      },
+      "Đã báo cho cô giáo",
+    );
+    if (ok) form.reset();
+  }
+
+  async function removePerson(id: number) {
+    const r = await fetch(`/api/pickup?id=${id}&kind=person`, { method: "DELETE" });
+    if (r.ok) {
+      setTick((t) => t + 1);
+      ping("Đã xóa người đón");
+    }
+  }
+
+  return (
+    <div className="panel">
+      <Title
+        title="Người đón bé"
+        sub="Đăng ký trước để cô nhận đúng người · báo riêng khi đổi người đón"
+      />
+      {persons.map((x) => (
+        <div className="leave-line" key={x.id}>
+          <div>
+            <b>
+              {x.name}
+              {x.relation ? ` · ${x.relation}` : ""}
+            </b>
+            <small>
+              Đón {x.childName}
+              {x.phone ? ` · ${x.phone}` : ""}
+            </small>
+          </div>
+          <button className="reject" onClick={() => removePerson(x.id)}>
+            Xóa
+          </button>
+        </div>
+      ))}
+      <form className="pickup-form" onSubmit={addPerson}>
+        <div className="row3">
+          <label>
+            Bé
+            <select name="childId">
+              {childList.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Tên người đón
+            <input name="name" required />
+          </label>
+          <label>
+            Quan hệ
+            <select name="relation">
+              {relations.map((x) => (
+                <option key={x}>{x}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <div className="row">
+          <label>
+            Số điện thoại
+            <input name="phone" inputMode="tel" />
+          </label>
+          <button className="save slim">＋ Đăng ký người đón</button>
+        </div>
+      </form>
+
+      {persons.length > 0 && (
+        <form className="pickup-form notice-form" onSubmit={addNotice}>
+          <b className="form-heading">Báo người đón hôm nay / ngày tới</b>
+          <div className="row3">
+            <label>
+              Ai đón
+              <select name="person">
+                {persons.map((x) => (
+                  <option key={x.id} value={`${x.id}:${x.childId}`}>
+                    {x.name} đón {x.childName}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Ngày
+              <input type="date" name="date" defaultValue={today} min={today} />
+            </label>
+            <label>
+              Giờ dự kiến
+              <input type="time" name="expectedTime" />
+            </label>
+          </div>
+          <div className="row">
+            <label>
+              Nhắn thêm
+              <input name="note" placeholder="Ví dụ: ông đeo kính, đi xe máy xanh" />
+            </label>
+            <button className="save slim">Báo cho cô</button>
+          </div>
+        </form>
+      )}
+      {error && <p className="form-error">{error}</p>}
+      {notices.length > 0 && (
+        <div className="notice-history">
+          <b className="form-heading">Đã báo gần đây</b>
+          {notices.slice(0, 5).map((x) => (
+            <small key={x.id}>
+              {x.date}
+              {x.expectedTime ? ` ${x.expectedTime}` : ""} · {x.personName} đón {x.childName}
+            </small>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function Title({ title, sub }: { title: string; sub: string }) {
