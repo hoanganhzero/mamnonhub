@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { children, classes } from "../../../db/schema";
+import { logAction } from "../../../lib/audit";
 import { classParam, scopedChildren, teacherClasses } from "../../../lib/scope";
 import { currentUser } from "../../../lib/session";
 
@@ -108,6 +109,13 @@ export async function POST(request: Request) {
           { status: 400 },
         );
       const inserted = await getDb().insert(children).values(valid).returning();
+      await logAction(
+        user,
+        "nhập Excel",
+        "hồ sơ trẻ",
+        null,
+        `${inserted.length} hồ sơ`,
+      );
       return Response.json(
         { children: inserted, count: inserted.length },
         { status: 201 },
@@ -139,6 +147,7 @@ export async function POST(request: Request) {
         zaloPhone: p.zaloPhone || p.phone || "",
       })
       .returning();
+    await logAction(user, "tạo", "hồ sơ trẻ", child.id, child.name);
     return Response.json({ child }, { status: 201 });
   } catch (error) {
     return Response.json({ error: String(error) }, { status: 500 });
@@ -204,6 +213,7 @@ export async function PATCH(request: Request) {
       .set(values)
       .where(eq(children.id, id))
       .returning();
+    await logAction(user, "sửa", "hồ sơ trẻ", id, Object.keys(values).join(", "));
     return Response.json({ child });
   } catch (error) {
     return Response.json({ error: String(error) }, { status: 500 });
@@ -231,8 +241,13 @@ export async function DELETE(request: Request) {
         { error: "Không có quyền với hồ sơ của trường khác" },
         { status: 403 },
       );
-    await getDb().delete(children).where(eq(children.id, id));
-    return Response.json({ ok: true });
+    // Xóa mềm: hồ sơ và lịch sử điểm danh, sức khỏe được giữ lại để truy vết.
+    await getDb()
+      .update(children)
+      .set({ status: "Đã nghỉ học", parentUserId: null, classId: null })
+      .where(eq(children.id, id));
+    await logAction(user, "cho nghỉ học (xóa mềm)", "hồ sơ trẻ", id, target.name);
+    return Response.json({ ok: true, softDeleted: true });
   } catch (error) {
     return Response.json({ error: String(error) }, { status: 500 });
   }

@@ -30,3 +30,20 @@ export const INCIDENT_KINDS = [
 export const INCIDENT_SEVERITY = ["Nhẹ", "Cần theo dõi", "Khẩn"];
 /** Giờ làm việc của trường: ngoài khung này giao diện báo cô sẽ trả lời sau. */
 export const OFFICE_HOURS = { from: "07:00", to: "17:30" };
+export const ASSESSMENT_DOMAINS = [
+  ["physical", "Thể chất"],
+  ["cognitive", "Nhận thức"],
+  ["language", "Ngôn ngữ"],
+  ["social", "Tình cảm – xã hội"],
+  ["aesthetic", "Thẩm mỹ"],
+] as const;
+export const ASSESSMENT_LEVELS = ["Tốt", "Đạt", "Cần cố gắng"];
+export const PICKUP_RELATIONS = [
+  "Bố",
+  "Mẹ",
+  "Ông",
+  "Bà",
+  "Cô/Chú/Bác",
+  "Anh/Chị",
+  "Người quen",
+];

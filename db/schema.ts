@@ -336,3 +336,130 @@ export const menus = sqliteTable(
     ),
   ],
 );
+
+/** Biểu phí của trường: tiền cố định theo tháng và tiền ăn theo ngày đi học thật. */
+export const feeSettings = sqliteTable(
+  "fee_settings",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    schoolId: integer("school_id").notNull(),
+    tuitionMonthly: integer("tuition_monthly").notNull().default(0),
+    mealPerDay: integer("meal_per_day").notNull().default(0),
+    otherFee: integer("other_fee").notNull().default(0),
+    otherLabel: text("other_label").notNull().default("Phí khác"),
+    bankCode: text("bank_code").notNull().default(""),
+    bankAccount: text("bank_account").notNull().default(""),
+    bankHolder: text("bank_holder").notNull().default(""),
+    note: text("note").notNull().default(""),
+    updatedAt: text("updated_at")
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [uniqueIndex("fee_settings_school_unique").on(table.schoolId)],
+);
+
+export const invoices = sqliteTable(
+  "invoices",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    schoolId: integer("school_id").notNull(),
+    childId: integer("child_id").notNull(),
+    month: text("month").notNull(),
+    tuition: integer("tuition").notNull().default(0),
+    mealDays: integer("meal_days").notNull().default(0),
+    mealPerDay: integer("meal_per_day").notNull().default(0),
+    otherFee: integer("other_fee").notNull().default(0),
+    otherLabel: text("other_label").notNull().default(""),
+    total: integer("total").notNull().default(0),
+    status: text("status").notNull().default("Chưa đóng"),
+    paidAt: text("paid_at").notNull().default(""),
+    note: text("note").notNull().default(""),
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [
+    uniqueIndex("invoices_child_month_unique").on(table.childId, table.month),
+  ],
+);
+
+/** Đánh giá cuối kỳ theo 5 lĩnh vực phát triển của trẻ mầm non. */
+export const assessments = sqliteTable(
+  "assessments",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    schoolId: integer("school_id").notNull(),
+    childId: integer("child_id").notNull(),
+    period: text("period").notNull(),
+    physical: text("physical").notNull().default(""),
+    cognitive: text("cognitive").notNull().default(""),
+    language: text("language").notNull().default(""),
+    social: text("social").notNull().default(""),
+    aesthetic: text("aesthetic").notNull().default(""),
+    comment: text("comment").notNull().default(""),
+    teacherId: integer("teacher_id"),
+    updatedAt: text("updated_at")
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [
+    uniqueIndex("assessments_child_period_unique").on(
+      table.childId,
+      table.period,
+    ),
+  ],
+);
+
+/** Người được phụ huynh đăng ký đón trẻ. */
+export const pickupPersons = sqliteTable("pickup_persons", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  schoolId: integer("school_id").notNull(),
+  childId: integer("child_id").notNull(),
+  name: text("name").notNull(),
+  relation: text("relation").notNull().default(""),
+  phone: text("phone").notNull().default(""),
+  createdBy: integer("created_by").notNull(),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
+});
+
+/** Báo trước hôm nay ai đón bé, hiện thẳng trên màn điểm danh của cô. */
+export const pickupNotices = sqliteTable(
+  "pickup_notices",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    schoolId: integer("school_id").notNull(),
+    childId: integer("child_id").notNull(),
+    date: text("date").notNull(),
+    personName: text("person_name").notNull(),
+    relation: text("relation").notNull().default(""),
+    phone: text("phone").notNull().default(""),
+    expectedTime: text("expected_time").notNull().default(""),
+    note: text("note").notNull().default(""),
+    createdBy: integer("created_by").notNull(),
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [index("pickup_notices_date_idx").on(table.date, table.childId)],
+);
+
+/** Nhật ký thao tác: ai làm gì, lúc nào — nền cho xóa mềm và truy vết. */
+export const auditLogs = sqliteTable(
+  "audit_logs",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    schoolId: integer("school_id"),
+    actorId: integer("actor_id").notNull(),
+    actorRole: text("actor_role").notNull(),
+    action: text("action").notNull(),
+    entity: text("entity").notNull(),
+    entityId: integer("entity_id"),
+    detail: text("detail").notNull().default(""),
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [index("audit_logs_entity_idx").on(table.entity, table.entityId)],
+);
