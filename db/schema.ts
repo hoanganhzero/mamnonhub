@@ -1,6 +1,8 @@
 import { sql } from "drizzle-orm";
 import {
+  index,
   integer,
+  real,
   sqliteTable,
   text,
   uniqueIndex,
@@ -81,6 +83,11 @@ export const announcements = sqliteTable("announcements", {
   title: text("title").notNull(),
   content: text("content").notNull(),
   audience: text("audience").notNull().default("Phụ huynh lớp Lá 1"),
+  classId: integer("class_id"),
+  createdBy: integer("created_by"),
+  requiresAck: integer("requires_ack", { mode: "boolean" })
+    .notNull()
+    .default(false),
   createdAt: text("created_at")
     .notNull()
     .default(sql`CURRENT_TIMESTAMP`),
@@ -181,3 +188,151 @@ export const leaveRequests = sqliteTable("leave_requests", {
     .notNull()
     .default(sql`CURRENT_TIMESTAMP`),
 });
+
+export const announcementReads = sqliteTable(
+  "announcement_reads",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    announcementId: integer("announcement_id").notNull(),
+    userId: integer("user_id").notNull(),
+    readAt: text("read_at")
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [
+    uniqueIndex("announcement_reads_unique").on(
+      table.announcementId,
+      table.userId,
+    ),
+  ],
+);
+
+export const posts = sqliteTable(
+  "posts",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    schoolId: integer("school_id").notNull(),
+    classId: integer("class_id"),
+    authorId: integer("author_id").notNull(),
+    title: text("title").notNull(),
+    content: text("content").notNull().default(""),
+    category: text("category").notNull().default("Hoạt động học"),
+    date: text("date").notNull(),
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [index("posts_school_date_idx").on(table.schoolId, table.date)],
+);
+
+export const postMedia = sqliteTable(
+  "post_media",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    postId: integer("post_id").notNull(),
+    mediaKey: text("media_key").notNull(),
+    contentType: text("content_type").notNull().default("image/jpeg"),
+    sortOrder: integer("sort_order").notNull().default(0),
+  },
+  (table) => [index("post_media_post_idx").on(table.postId)],
+);
+
+/** Trẻ có mặt trong bài viết — phụ huynh chỉ thấy ảnh có con mình hoặc bài chung. */
+export const postTags = sqliteTable(
+  "post_tags",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    postId: integer("post_id").notNull(),
+    childId: integer("child_id").notNull(),
+  },
+  (table) => [uniqueIndex("post_tags_unique").on(table.postId, table.childId)],
+);
+
+export const messages = sqliteTable(
+  "messages",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    schoolId: integer("school_id").notNull(),
+    childId: integer("child_id").notNull(),
+    senderId: integer("sender_id").notNull(),
+    senderRole: text("sender_role").notNull(),
+    body: text("body").notNull(),
+    readAt: text("read_at").notNull().default(""),
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [index("messages_child_idx").on(table.childId, table.id)],
+);
+
+export const healthRecords = sqliteTable(
+  "health_records",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    schoolId: integer("school_id").notNull(),
+    childId: integer("child_id").notNull(),
+    date: text("date").notNull(),
+    heightCm: real("height_cm"),
+    weightKg: real("weight_kg"),
+    note: text("note").notNull().default(""),
+    recordedBy: integer("recorded_by"),
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [
+    uniqueIndex("health_records_child_date_unique").on(
+      table.childId,
+      table.date,
+    ),
+  ],
+);
+
+export const incidents = sqliteTable(
+  "incidents",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    schoolId: integer("school_id").notNull(),
+    childId: integer("child_id").notNull(),
+    classId: integer("class_id"),
+    date: text("date").notNull(),
+    time: text("time").notNull().default(""),
+    kind: text("kind").notNull().default("Sốt"),
+    severity: text("severity").notNull().default("Nhẹ"),
+    description: text("description").notNull().default(""),
+    handling: text("handling").notNull().default(""),
+    mediaKey: text("media_key"),
+    recordedBy: integer("recorded_by"),
+    acknowledgedBy: integer("acknowledged_by"),
+    acknowledgedAt: text("acknowledged_at").notNull().default(""),
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [index("incidents_child_idx").on(table.childId, table.date)],
+);
+
+export const menus = sqliteTable(
+  "menus",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    schoolId: integer("school_id").notNull(),
+    weekStart: text("week_start").notNull(),
+    weekday: integer("weekday").notNull(),
+    breakfast: text("breakfast").notNull().default(""),
+    lunch: text("lunch").notNull().default(""),
+    snack: text("snack").notNull().default(""),
+    note: text("note").notNull().default(""),
+    updatedBy: integer("updated_by"),
+    updatedAt: text("updated_at")
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [
+    uniqueIndex("menus_week_unique").on(
+      table.schoolId,
+      table.weekStart,
+      table.weekday,
+    ),
+  ],
+);
