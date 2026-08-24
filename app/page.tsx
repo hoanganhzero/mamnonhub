@@ -685,7 +685,6 @@ function TeacherArea({
   if (active === "Phụ huynh")
     return <AccountManager ping={ping} back={() => {}} />;
   if (active === "Thông báo") return <Notices ping={ping} />;
-  if (active === "Thiết lập") return <SchoolSetup ping={ping} />;
   return <Teacher ping={ping} />;
 }
 

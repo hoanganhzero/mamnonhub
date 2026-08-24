@@ -1,5 +1,6 @@
 import type { SQL } from "drizzle-orm";
 import { and, asc, eq, inArray, isNull, notInArray, or } from "drizzle-orm";
+import type { AnySQLiteColumn } from "drizzle-orm/sqlite-core";
 import { getDb } from "../db";
 import { childGuardians, children, classes, users } from "../db/schema";
 
@@ -145,4 +146,22 @@ export function classParam(request: Request) {
   if (raw === null || raw === "" || raw === "all") return null;
   const value = Number(raw);
   return Number.isInteger(value) && value >= 0 ? value : null;
+}
+
+/**
+ * Điều kiện lọc bản ghi theo phạm vi trẻ của người dùng cho một bảng bất kỳ
+ * có cột school_id và child_id. Phạm vi cả trường lọc bằng school_id để tránh
+ * mệnh đề IN với hàng trăm mã trẻ — vượt giới hạn tham số của D1.
+ */
+export function reach(
+  scope: ChildScope,
+  user: Actor,
+  cols: { schoolId: AnySQLiteColumn; childId: AnySQLiteColumn },
+): SQL | undefined {
+  if (scope.scope === "system") return undefined;
+  if (scope.scope === "school" && user.schoolId)
+    return eq(cols.schoolId, user.schoolId);
+  const ids = scope.rows.map((x) => x.id);
+  if (!ids.length) return eq(cols.childId, -1);
+  return inArray(cols.childId, ids);
 }

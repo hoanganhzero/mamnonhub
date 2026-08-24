@@ -48,7 +48,12 @@ export async function GET(request: Request) {
       dump[name] = await db.select().from(table);
     // Không đưa mã mật khẩu ra ngoài hệ thống.
     dump.users = (dump.users as (typeof schema.users.$inferSelect)[]).map(
-      ({ passwordHash, salt, ...rest }) => rest,
+      (row) => {
+        const rest = { ...row } as Partial<typeof row>;
+        delete rest.passwordHash;
+        delete rest.salt;
+        return rest;
+      },
     );
 
     const date = vnToday();

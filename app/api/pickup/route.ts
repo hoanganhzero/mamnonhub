@@ -3,7 +3,7 @@ import { getDb } from "../../../db";
 import { pickupNotices, pickupPersons } from "../../../db/schema";
 import { PICKUP_RELATIONS } from "../../../lib/care";
 import { dateParam, isDate, isTime, vnToday } from "../../../lib/day";
-import { scopedChildren } from "../../../lib/scope";
+import { reach, scopedChildren } from "../../../lib/scope";
 import { currentUser } from "../../../lib/session";
 
 export async function GET(request: Request) {
@@ -22,7 +22,12 @@ export async function GET(request: Request) {
           db
             .select()
             .from(pickupPersons)
-            .where(inArray(pickupPersons.childId, childIds)),
+            .where(
+              reach(scope, user, {
+                schoolId: pickupPersons.schoolId,
+                childId: pickupPersons.childId,
+              }),
+            ),
           // Giáo viên xem theo ngày; phụ huynh xem các báo gần nhất của con.
           user.role === "parent"
             ? db
@@ -37,7 +42,10 @@ export async function GET(request: Request) {
                 .where(
                   and(
                     eq(pickupNotices.date, date),
-                    inArray(pickupNotices.childId, childIds),
+                    reach(scope, user, {
+                      schoolId: pickupNotices.schoolId,
+                      childId: pickupNotices.childId,
+                    }),
                   ),
                 ),
         ])

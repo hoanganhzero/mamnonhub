@@ -1,8 +1,9 @@
-import { inArray, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { assessments } from "../../../db/schema";
 import { ASSESSMENT_DOMAINS, ASSESSMENT_LEVELS } from "../../../lib/care";
-import { scopedChildren } from "../../../lib/scope";
+import { rowChunks } from "../../../lib/batch";
+import { reach, scopedChildren } from "../../../lib/scope";
 import { currentUser } from "../../../lib/session";
 
 const MAX_ITEMS = 300;
@@ -18,7 +19,12 @@ export async function GET(request: Request) {
       ? await getDb()
           .select()
           .from(assessments)
-          .where(inArray(assessments.childId, [...names.keys()]))
+          .where(
+            reach(scope, user, {
+              schoolId: assessments.schoolId,
+              childId: assessments.childId,
+            }),
+          )
       : [];
     return Response.json({
       domains: ASSESSMENT_DOMAINS.map(([key, label]) => ({ key, label })),
@@ -112,9 +118,10 @@ export async function POST(request: Request) {
         { status: 400 },
       );
 
-    await getDb()
+    for (const part of rowChunks(values, 12))
+      await getDb()
       .insert(assessments)
-      .values(values)
+      .values(part)
       .onConflictDoUpdate({
         target: [assessments.childId, assessments.period],
         set: {

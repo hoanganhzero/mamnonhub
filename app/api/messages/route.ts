@@ -3,7 +3,8 @@ import { getDb } from "../../../db";
 import { messages, users } from "../../../db/schema";
 import { OFFICE_HOURS } from "../../../lib/care";
 import { vnNow, vnToday } from "../../../lib/day";
-import { scopedChildren } from "../../../lib/scope";
+import { rowChunks } from "../../../lib/batch";
+import { reach, scopedChildren } from "../../../lib/scope";
 import { currentUser } from "../../../lib/session";
 
 export async function GET(request: Request) {
@@ -23,7 +24,12 @@ export async function GET(request: Request) {
     const all = await db
       .select()
       .from(messages)
-      .where(inArray(messages.childId, childIds))
+      .where(
+        reach(scope, user, {
+          schoolId: messages.schoolId,
+          childId: messages.childId,
+        }),
+      )
       .orderBy(desc(messages.id))
       .limit(400);
 
@@ -31,18 +37,12 @@ export async function GET(request: Request) {
     const unreadHere = all.filter(
       (x) => x.childId === childId && x.senderId !== user.id && !x.readAt,
     );
-    if (unreadHere.length)
+    for (const part of rowChunks(unreadHere.map((x) => x.id), 1))
       await db
         .update(messages)
         .set({ readAt: `${vnToday()} ${vnNow()}` })
         .where(
-          and(
-            inArray(
-              messages.id,
-              unreadHere.map((x) => x.id),
-            ),
-            ne(messages.senderId, user.id),
-          ),
+          and(inArray(messages.id, part), ne(messages.senderId, user.id)),
         );
 
     const senderIds = [...new Set(all.map((x) => x.senderId))];

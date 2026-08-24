@@ -1,9 +1,10 @@
-import { and, eq, gte, inArray, like, lte, sql } from "drizzle-orm";
+import { and, eq, gte, like, lte, sql } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { attendance, leaveRequests } from "../../../db/schema";
 import { ATTENDANCE_STATUSES } from "../../../lib/care";
 import { dateParam, isDate, isMonth, isTime, vnToday } from "../../../lib/day";
-import { classParam, scopedChildren } from "../../../lib/scope";
+import { rowChunks } from "../../../lib/batch";
+import { classParam, reach, scopedChildren } from "../../../lib/scope";
 import { currentUser } from "../../../lib/session";
 
 const MAX_ITEMS = 300;
@@ -15,15 +16,22 @@ async function staff(request: Request) {
     : null;
 }
 
-/** Đơn xin nghỉ đã duyệt phủ lên ngày đang xem, tra theo mã trẻ. */
-async function approvedLeaves(childIds: number[], date: string) {
-  if (!childIds.length) return new Map<number, string>();
+/** Đơn xin nghỉ đã duyệt phủ lên ngày đang xem, tra theo phạm vi trẻ. */
+async function approvedLeaves(
+  scope: Awaited<ReturnType<typeof scopedChildren>>,
+  user: NonNullable<Awaited<ReturnType<typeof staff>>>,
+  date: string,
+) {
+  if (!scope.rows.length) return new Map<number, string>();
   const rows = await getDb()
     .select()
     .from(leaveRequests)
     .where(
       and(
-        inArray(leaveRequests.childId, childIds),
+        reach(scope, user, {
+          schoolId: leaveRequests.schoolId,
+          childId: leaveRequests.childId,
+        }),
         eq(leaveRequests.status, "Đã duyệt"),
         lte(leaveRequests.fromDate, date),
         gte(leaveRequests.toDate, date),
@@ -50,7 +58,10 @@ export async function GET(request: Request) {
             .where(
               and(
                 like(attendance.date, `${month}-%`),
-                inArray(attendance.childId, childIds),
+                reach(scope, user, {
+                  schoolId: attendance.schoolId,
+                  childId: attendance.childId,
+                }),
               ),
             )
         : [];
@@ -78,11 +89,14 @@ export async function GET(request: Request) {
             .where(
               and(
                 eq(attendance.date, date),
-                inArray(attendance.childId, childIds),
+                reach(scope, user, {
+                  schoolId: attendance.schoolId,
+                  childId: attendance.childId,
+                }),
               ),
             )
         : Promise.resolve([]),
-      approvedLeaves(childIds, date),
+      approvedLeaves(scope, user, date),
     ]);
     const byChild = new Map(saved.map((x) => [x.childId, x]));
     const rows = scope.rows.map((child) => {
@@ -189,10 +203,11 @@ export async function POST(request: Request) {
       });
     }
 
-    // Ghi cả lớp trong một câu lệnh: mất mạng giữa chừng thì không lưu dở.
-    await getDb()
+    // Ghi theo lô nhỏ để không vượt giới hạn tham số của D1.
+    for (const part of rowChunks(values, 10))
+      await getDb()
       .insert(attendance)
-      .values(values)
+      .values(part)
       .onConflictDoUpdate({
         target: [attendance.childId, attendance.date],
         set: {

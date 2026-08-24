@@ -1,9 +1,10 @@
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { dailyLogs } from "../../../db/schema";
 import { HEALTH, MEALS, MOODS, SLEEPS } from "../../../lib/care";
 import { dateParam, isDate, vnToday } from "../../../lib/day";
-import { classParam, scopedChildren } from "../../../lib/scope";
+import { rowChunks } from "../../../lib/batch";
+import { classParam, reach, scopedChildren } from "../../../lib/scope";
 import { currentUser } from "../../../lib/session";
 
 const MAX_ITEMS = 300;
@@ -37,7 +38,13 @@ export async function GET(request: Request) {
           .select()
           .from(dailyLogs)
           .where(
-            and(eq(dailyLogs.date, date), inArray(dailyLogs.childId, childIds)),
+            and(
+              eq(dailyLogs.date, date),
+              reach(scope, user, {
+                schoolId: dailyLogs.schoolId,
+                childId: dailyLogs.childId,
+              }),
+            ),
           )
       : [];
     const byChild = new Map(saved.map((x) => [x.childId, x]));
@@ -146,9 +153,10 @@ export async function POST(request: Request) {
       });
     }
 
-    await getDb()
+    for (const part of rowChunks(values, 14))
+      await getDb()
       .insert(dailyLogs)
-      .values(values)
+      .values(part)
       .onConflictDoUpdate({
         target: [dailyLogs.childId, dailyLogs.date],
         set: {

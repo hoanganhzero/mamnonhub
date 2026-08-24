@@ -2,6 +2,7 @@ import { and, eq, inArray, like, sql } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { attendance, feeSettings, invoices } from "../../../db/schema";
 import { logAction } from "../../../lib/audit";
+import { rowChunks } from "../../../lib/batch";
 import { isMonth, monthParam, vnMonth, vnNow, vnToday } from "../../../lib/day";
 import { scopedChildren } from "../../../lib/scope";
 import { currentUser } from "../../../lib/session";
@@ -166,9 +167,10 @@ export async function POST(request: Request) {
         };
       });
       // Phiếu đã đóng rồi thì giữ nguyên, chỉ cập nhật phiếu chưa đóng.
-      await getDb()
+      for (const part of rowChunks(values, 14))
+        await getDb()
         .insert(invoices)
-        .values(values)
+        .values(part)
         .onConflictDoUpdate({
           target: [invoices.childId, invoices.month],
           set: {

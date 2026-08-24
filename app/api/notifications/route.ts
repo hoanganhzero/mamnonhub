@@ -9,7 +9,7 @@ import {
   messages,
 } from "../../../db/schema";
 import { vnToday } from "../../../lib/day";
-import { scopedChildren, teacherClasses } from "../../../lib/scope";
+import { reach, scopedChildren, teacherClasses } from "../../../lib/scope";
 import { currentUser } from "../../../lib/session";
 
 type Item = { kind: string; label: string; count: number; target: string };
@@ -31,7 +31,13 @@ export async function GET(request: Request) {
         .select()
         .from(messages)
         .where(
-          and(inArray(messages.childId, childIds), eq(messages.readAt, "")),
+          and(
+            reach(scope, user, {
+              schoolId: messages.schoolId,
+              childId: messages.childId,
+            }),
+            eq(messages.readAt, ""),
+          ),
         );
       const unread = inbox.filter((x) => x.senderId !== user.id).length;
       if (unread)
@@ -50,7 +56,10 @@ export async function GET(request: Request) {
           .from(incidents)
           .where(
             and(
-              inArray(incidents.childId, childIds),
+              reach(scope, user, {
+                schoolId: incidents.schoolId,
+                childId: incidents.childId,
+              }),
               isNull(incidents.acknowledgedBy),
             ),
           );
@@ -68,7 +77,7 @@ export async function GET(request: Request) {
         ),
       ];
       if (user.schoolId) {
-        const reach = and(
+        const audienceReach = and(
           eq(announcements.schoolId, user.schoolId),
           classIds.length
             ? or(
@@ -78,7 +87,7 @@ export async function GET(request: Request) {
             : isNull(announcements.classId),
         );
         const [all, read] = await Promise.all([
-          db.select({ id: announcements.id }).from(announcements).where(reach),
+          db.select({ id: announcements.id }).from(announcements).where(audienceReach),
           db
             .select({ id: announcementReads.announcementId })
             .from(announcementReads)
@@ -102,7 +111,10 @@ export async function GET(request: Request) {
         .from(leaveRequests)
         .where(
           and(
-            inArray(leaveRequests.childId, childIds),
+            reach(scope, user, {
+              schoolId: leaveRequests.schoolId,
+              childId: leaveRequests.childId,
+            }),
             eq(leaveRequests.status, "Chờ duyệt"),
           ),
         );
@@ -121,7 +133,10 @@ export async function GET(request: Request) {
           .where(
             and(
               eq(attendance.date, today),
-              inArray(attendance.childId, childIds),
+              reach(scope, user, {
+                schoolId: attendance.schoolId,
+                childId: attendance.childId,
+              }),
             ),
           );
         const missing = childIds.length - marked.length;

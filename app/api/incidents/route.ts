@@ -3,7 +3,7 @@ import { getDb } from "../../../db";
 import { incidents, users } from "../../../db/schema";
 import { INCIDENT_KINDS, INCIDENT_SEVERITY } from "../../../lib/care";
 import { isDate, isTime, vnNow, vnToday } from "../../../lib/day";
-import { scopedChildren } from "../../../lib/scope";
+import { reach, scopedChildren } from "../../../lib/scope";
 import { currentUser } from "../../../lib/session";
 
 export async function GET(request: Request) {
@@ -18,7 +18,12 @@ export async function GET(request: Request) {
       ? await getDb()
           .select()
           .from(incidents)
-          .where(inArray(incidents.childId, childIds))
+          .where(
+            reach(scope, user, {
+              schoolId: incidents.schoolId,
+              childId: incidents.childId,
+            }),
+          )
           .orderBy(desc(incidents.id))
           .limit(100)
       : [];

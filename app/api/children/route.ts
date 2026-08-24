@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { children, classes } from "../../../db/schema";
 import { logAction } from "../../../lib/audit";
+import { rowChunks } from "../../../lib/batch";
 import { classParam, scopedChildren, teacherClasses } from "../../../lib/scope";
 import { currentUser } from "../../../lib/session";
 
@@ -108,7 +109,11 @@ export async function POST(request: Request) {
           { error: "Không tìm thấy cột Họ tên hợp lệ" },
           { status: 400 },
         );
-      const inserted = await getDb().insert(children).values(valid).returning();
+      const inserted = [];
+      for (const part of rowChunks(valid, 19))
+        inserted.push(
+          ...(await getDb().insert(children).values(part).returning()),
+        );
       await logAction(
         user,
         "nhập Excel",

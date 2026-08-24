@@ -1,8 +1,9 @@
-import { asc, inArray, sql } from "drizzle-orm";
+import { asc, sql } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { healthRecords } from "../../../db/schema";
 import { isDate, vnToday } from "../../../lib/day";
-import { classParam, scopedChildren } from "../../../lib/scope";
+import { rowChunks } from "../../../lib/batch";
+import { classParam, reach, scopedChildren } from "../../../lib/scope";
 import { currentUser } from "../../../lib/session";
 
 const MAX_ITEMS = 300;
@@ -24,7 +25,12 @@ export async function GET(request: Request) {
       ? await getDb()
           .select()
           .from(healthRecords)
-          .where(inArray(healthRecords.childId, childIds))
+          .where(
+            reach(scope, user, {
+              schoolId: healthRecords.schoolId,
+              childId: healthRecords.childId,
+            }),
+          )
           .orderBy(asc(healthRecords.date))
       : [];
     return Response.json({
@@ -125,9 +131,10 @@ export async function POST(request: Request) {
         { status: 400 },
       );
 
-    await getDb()
+    for (const part of rowChunks(values, 8))
+      await getDb()
       .insert(healthRecords)
-      .values(values)
+      .values(part)
       .onConflictDoUpdate({
         target: [healthRecords.childId, healthRecords.date],
         set: {

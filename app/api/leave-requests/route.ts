@@ -1,9 +1,9 @@
-import { desc, eq, inArray } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { leaveRequests } from "../../../db/schema";
 import { LEAVE_REASONS } from "../../../lib/care";
 import { isDate, vnNow, vnToday } from "../../../lib/day";
-import { scopedChildren } from "../../../lib/scope";
+import { reach, scopedChildren } from "../../../lib/scope";
 import { currentUser } from "../../../lib/session";
 
 const STATUSES = ["Chờ duyệt", "Đã duyệt", "Từ chối"];
@@ -20,7 +20,12 @@ export async function GET(request: Request) {
       ? await getDb()
           .select()
           .from(leaveRequests)
-          .where(inArray(leaveRequests.childId, childIds))
+          .where(
+            reach(scope, user, {
+              schoolId: leaveRequests.schoolId,
+              childId: leaveRequests.childId,
+            }),
+          )
           .orderBy(desc(leaveRequests.id))
           .limit(100)
       : [];
