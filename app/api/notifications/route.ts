@@ -5,6 +5,7 @@ import {
   announcements,
   attendance,
   incidents,
+  invoices,
   leaveRequests,
   messages,
 } from "../../../db/schema";
@@ -69,6 +70,27 @@ export async function GET(request: Request) {
             label: "sự cố cần xác nhận",
             count: pending.length,
             target: "Hôm nay của con",
+          });
+      }
+      if (childIds.length) {
+        const unpaid = await db
+          .select({ id: invoices.id })
+          .from(invoices)
+          .where(
+            and(
+              reach(scope, user, {
+                schoolId: invoices.schoolId,
+                childId: invoices.childId,
+              }),
+              eq(invoices.status, "Chưa đóng"),
+            ),
+          );
+        if (unpaid.length)
+          items.push({
+            kind: "fees",
+            label: "phiếu học phí chưa đóng",
+            count: unpaid.length,
+            target: "Học phí",
           });
       }
       const classIds = [

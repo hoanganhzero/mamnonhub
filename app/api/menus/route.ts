@@ -2,6 +2,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { menus } from "../../../db/schema";
 import { allergyHits } from "../../../lib/allergy";
+import { rowChunks } from "../../../lib/batch";
 import { isDate, vnToday } from "../../../lib/day";
 import { scopedChildren } from "../../../lib/scope";
 import { currentUser } from "../../../lib/session";
@@ -44,6 +45,7 @@ export async function GET(request: Request) {
         lunch: row?.lunch ?? "",
         snack: row?.snack ?? "",
         note: row?.note ?? "",
+        photoKey: row?.photoKey ?? null,
       };
     });
 
@@ -109,6 +111,12 @@ export async function POST(request: Request) {
           { error: `Ngày không hợp lệ: ${day.weekday}` },
           { status: 400 },
         );
+      const photoKey = String(day.photoKey || "");
+      if (photoKey && !photoKey.startsWith(`media/${user.schoolId}/`))
+        return Response.json(
+          { error: "Ảnh không thuộc trường" },
+          { status: 403 },
+        );
       values.push({
         schoolId: user.schoolId,
         weekStart,
@@ -117,14 +125,16 @@ export async function POST(request: Request) {
         lunch: String(day.lunch || "").slice(0, 300),
         snack: String(day.snack || "").slice(0, 300),
         note: String(day.note || "").slice(0, 300),
+        photoKey: photoKey || null,
         updatedBy: user.id,
         updatedAt: sql`CURRENT_TIMESTAMP`,
       });
     }
 
-    await getDb()
+    for (const part of rowChunks(values, 11))
+      await getDb()
       .insert(menus)
-      .values(values)
+      .values(part)
       .onConflictDoUpdate({
         target: [menus.schoolId, menus.weekStart, menus.weekday],
         set: {
@@ -132,6 +142,7 @@ export async function POST(request: Request) {
           lunch: sql`excluded.lunch`,
           snack: sql`excluded.snack`,
           note: sql`excluded.note`,
+          photoKey: sql`excluded.photo_key`,
           updatedBy: sql`excluded.updated_by`,
           updatedAt: sql`CURRENT_TIMESTAMP`,
         },

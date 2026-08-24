@@ -328,6 +328,7 @@ export const menus = sqliteTable(
     lunch: text("lunch").notNull().default(""),
     snack: text("snack").notNull().default(""),
     note: text("note").notNull().default(""),
+    photoKey: text("photo_key"),
     updatedBy: integer("updated_by"),
     updatedAt: text("updated_at")
       .notNull()

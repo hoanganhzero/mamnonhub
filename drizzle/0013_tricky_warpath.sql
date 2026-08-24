@@ -1,0 +1,1 @@
+ALTER TABLE `menus` ADD `photo_key` text;

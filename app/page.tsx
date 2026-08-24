@@ -2,8 +2,8 @@
 import { useEffect, useState } from "react";
 import "./chibi.css";
 import * as XLSX from "xlsx";
-import { vnNow, vnToday } from "../lib/day";
-import { THEMES, themeVars } from "../lib/themes";
+import { unaccent, vnNow, vnToday } from "../lib/day";
+import { MASCOT_SET, THEMES, themeVars } from "../lib/themes";
 import { weekStartOf } from "../lib/week";
 
 const iconMap: Record<string, string> = {
@@ -1580,7 +1580,7 @@ function SchoolSetup({ ping }: { ping: (s: string) => void }) {
         <div className="panel brand-card">
           <Title
             title="Logo trường"
-            sub="Hiện ở góc trái mọi màn hình · PNG, JPG, WEBP tối đa 5 MB"
+            sub="Tỷ lệ 7:4 — khuyến nghị 700×400 px, nền trong suốt (PNG)"
           />
           <div className="brand-frame logo-frame">
             {school.logoKey ? (
@@ -1589,7 +1589,7 @@ function SchoolSetup({ ping }: { ping: (s: string) => void }) {
                 alt="Logo trường"
               />
             ) : (
-              <span>Chưa có logo — đang dùng logo mặc định</span>
+              <span>Chưa có logo — khung này đúng tỷ lệ 7:4 (700×400 px)</span>
             )}
           </div>
           <label className="excel-btn">
@@ -1609,7 +1609,7 @@ function SchoolSetup({ ping }: { ping: (s: string) => void }) {
         <div className="panel brand-card">
           <Title
             title="Banner trang chủ"
-            sub="Ảnh ngang, hiện đầu trang của giáo viên và phụ huynh"
+            sub="Tỷ lệ 4:1 — khuyến nghị 1600×400 px, chủ thể đặt bên trái"
           />
           <div className="brand-frame banner-frame">
             {school.bannerKey ? (
@@ -1618,7 +1618,7 @@ function SchoolSetup({ ping }: { ping: (s: string) => void }) {
                 alt="Banner trường"
               />
             ) : (
-              <span>Chưa có banner</span>
+              <span>Chưa có banner — khung này đúng tỷ lệ 4:1 (1600×400 px)</span>
             )}
           </div>
           <label className="excel-btn">
@@ -1636,6 +1636,44 @@ function SchoolSetup({ ping }: { ping: (s: string) => void }) {
           </label>
         </div>
       </section>
+      <div className="panel brand-guide">
+        <Title
+          title="Gợi ý mẫu thiết kế"
+          sub="Đưa kích thước này cho người thiết kế (hoặc dùng Canva) là chuẩn ngay"
+        />
+        <div className="guide-grid">
+          <div>
+            <b>Logo · 700×400 px (7:4)</b>
+            <small>
+              Kiểu chữ tròn mềm + linh vật nhỏ (ong, hoa, mặt trời). Nền trong
+              suốt để hợp mọi bộ màu. Chữ tối thiểu 1/3 chiều cao để nhìn rõ
+              trên điện thoại.
+            </small>
+          </div>
+          <div>
+            <b>Logo huy hiệu</b>
+            <small>
+              Vòng tròn viền kép, tên trường cong theo vành trên, năm thành lập
+              vành dưới — hợp trường muốn vẻ truyền thống.
+            </small>
+          </div>
+          <div>
+            <b>Banner · 1600×400 px (4:1)</b>
+            <small>
+              Ảnh sân trường hoặc lớp học phủ một lớp màu nhạt theo bộ màu của
+              trường, tên trường đặt 1/3 bên trái, tránh chữ ở mép dưới vì bị
+              che trên màn hẹp.
+            </small>
+          </div>
+          <div>
+            <b>Banner minh họa</b>
+            <small>
+              Nền pastel + hình vẽ mây, cầu vồng, bóng bay; hợp khi chưa có ảnh
+              thực tế đẹp. Xuất JPG chất lượng 80 để nhẹ dưới 5 MB.
+            </small>
+          </div>
+        </div>
+      </div>
       <div className="panel theme-picker">
         <Title
           title="Bộ màu của trường"
@@ -3602,6 +3640,7 @@ type MenuDay = {
   lunch: string;
   snack: string;
   note: string;
+  photoKey: string | null;
 };
 type MenuWarning = {
   childId: number;
@@ -4467,10 +4506,29 @@ function MenuBoard({
     };
   }, [week]);
 
-  const edit = (weekday: number, field: keyof MenuDay, value: string) =>
+  const edit = (weekday: number, field: keyof MenuDay, value: string | null) =>
     setDays((s) =>
       s.map((d) => (d.weekday === weekday ? { ...d, [field]: value } : d)),
     );
+
+  async function uploadDish(
+    e: React.ChangeEvent<HTMLInputElement>,
+    weekday: number,
+  ) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    const form = new FormData();
+    form.append("file", file);
+    const r = await fetch("/api/media", { method: "POST", body: form }),
+      d = await r.json();
+    if (!r.ok) {
+      ping(d.error || "Không tải được ảnh món ăn");
+      return;
+    }
+    edit(weekday, "photoKey", d.media[0].key);
+    ping("Đã tải ảnh — nhớ bấm Lưu thực đơn tuần");
+  }
 
   async function save() {
     setSaving(true);
@@ -4550,6 +4608,37 @@ function MenuBoard({
                 </div>
               );
             })}
+            {d.photoKey && (
+              <a
+                href={mediaUrl(d.photoKey)}
+                target="_blank"
+                rel="noreferrer"
+                className="dish-photo"
+              >
+                <img src={mediaUrl(d.photoKey)} alt={`Món ăn ${d.label}`} loading="lazy" />
+              </a>
+            )}
+            {writable && (
+              <div className="dish-upload">
+                <label className="excel-btn">
+                  {d.photoKey ? "Thay ảnh món" : "📷 Ảnh món ăn"}
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={(e) => uploadDish(e, d.weekday)}
+                  />
+                </label>
+                {d.photoKey && (
+                  <button
+                    type="button"
+                    className="linkbtn"
+                    onClick={() => edit(d.weekday, "photoKey", null)}
+                  >
+                    Gỡ ảnh
+                  </button>
+                )}
+              </div>
+            )}
             {writable ? (
               <div className="menu-note">
                 <small>GHI CHÚ</small>
@@ -5125,13 +5214,11 @@ type MyClass = {
 /** Modal trang trí lớp: linh vật, khẩu hiệu, lời giới thiệu và ảnh bìa. */
 function ClassDecor({
   myClass,
-  mascots,
   ping,
   close,
   done,
 }: {
   myClass: MyClass;
-  mascots: string[];
   ping: (s: string) => void;
   close: () => void;
   done: () => void;
@@ -5196,14 +5283,16 @@ function ClassDecor({
         <h2>Trang trí lớp {myClass.name}</h2>
         <p>Phụ huynh của lớp cũng nhìn thấy trang trí này.</p>
         <div className="mascot-grid">
-          {mascots.map((m) => (
+          {MASCOT_SET.map((m, i) => (
             <button
               type="button"
-              key={m}
-              className={mascot === m ? "on" : ""}
-              onClick={() => setMascot(m)}
+              key={m.emoji}
+              className={`mascot-tile tone-${i % 4}${mascot === m.emoji ? " on" : ""}`}
+              onClick={() => setMascot(m.emoji)}
             >
-              {m}
+              <span className="mascot-face">{m.emoji}</span>
+              <b>{m.label}</b>
+              {mascot === m.emoji && <em>✓</em>}
             </button>
           ))}
         </div>
@@ -5260,7 +5349,6 @@ function Teacher({ ping }: { ping: (s: string) => void }) {
     [parents, setParents] = useState<ManagedUser[]>([]),
     [marks, setMarks] = useState<AttRow[]>([]),
     [myClasses, setMyClasses] = useState<MyClass[]>([]),
-    [mascots, setMascots] = useState<string[]>([]),
     [decorFor, setDecorFor] = useState<MyClass | null>(null),
     [classTick, setClassTick] = useState(0),
     [marked, setMarked] = useState(0);
@@ -5269,7 +5357,6 @@ function Teacher({ ping }: { ping: (s: string) => void }) {
       .then((r) => (r.ok ? r.json() : { classes: [] }))
       .then((d) => {
         setMyClasses(d.classes || []);
-        setMascots(d.mascots || []);
       })
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -5412,7 +5499,6 @@ function Teacher({ ping }: { ping: (s: string) => void }) {
       {decorFor && (
         <ClassDecor
           myClass={decorFor}
-          mascots={mascots}
           ping={ping}
           close={() => setDecorFor(null)}
           done={() => {
@@ -5958,10 +6044,14 @@ type InvoiceRow = {
   status: string;
   paidAt: string;
 };
+/** Nội dung chuyển khoản: không dấu để mọi ngân hàng hiển thị đúng. */
+function transferContent(inv: InvoiceRow) {
+  return unaccent(`HP ${inv.month} ${inv.childName}`).toUpperCase();
+}
+/** Mã QR chuẩn VietQR: quét là tự điền đúng số tiền và nội dung. */
 function vietQr(s: FeeSettingsRow, inv: InvoiceRow) {
   if (!s.bankCode || !s.bankAccount) return "";
-  const info = `HP ${inv.month} ${inv.childName}`.replace(/[^\p{L}\p{N} ]/gu, "");
-  return `https://img.vietqr.io/image/${s.bankCode}-${s.bankAccount}-compact2.jpg?amount=${inv.total}&addInfo=${encodeURIComponent(info)}&accountName=${encodeURIComponent(s.bankHolder)}`;
+  return `https://img.vietqr.io/image/${s.bankCode}-${s.bankAccount}-compact2.jpg?amount=${inv.total}&addInfo=${encodeURIComponent(transferContent(inv))}&accountName=${encodeURIComponent(unaccent(s.bankHolder).toUpperCase())}`;
 }
 
 /** Quản trị trường: biểu phí, phát hành phiếu theo tháng, xác nhận đã đóng. */
@@ -5970,6 +6060,7 @@ function FeeManager({ ping }: { ping: (s: string) => void }) {
     [settings, setSettings] = useState<FeeSettingsRow | null>(null),
     [rows, setRows] = useState<InvoiceRow[]>([]),
     [busy, setBusy] = useState(false),
+    [qrInv, setQrInv] = useState<InvoiceRow | null>(null),
     [tick, setTick] = useState(0);
 
   useEffect(() => {
@@ -6144,9 +6235,16 @@ function FeeManager({ ping }: { ping: (s: string) => void }) {
                       Đã đóng ✓
                     </button>
                   ) : (
-                    <button className="pill-action" onClick={() => mark(x, true)}>
-                      Ghi nhận đã đóng
-                    </button>
+                    <div className="user-actions">
+                      <button className="pill-action" onClick={() => mark(x, true)}>
+                        Đã đóng
+                      </button>
+                      {settings?.bankCode && settings?.bankAccount && (
+                        <button className="editbtn" onClick={() => setQrInv(x)}>
+                          Mã QR
+                        </button>
+                      )}
+                    </div>
                   )}
                 </td>
               </tr>
@@ -6159,6 +6257,35 @@ function FeeManager({ ping }: { ping: (s: string) => void }) {
           </div>
         )}
       </div>
+      {qrInv && settings && (
+        <div className="back" onClick={() => setQrInv(null)}>
+          <div className="modal qr-modal" onClick={(e) => e.stopPropagation()}>
+            <button type="button" className="x" onClick={() => setQrInv(null)}>
+              ×
+            </button>
+            <h2>
+              {qrInv.childName} · Tháng {qrInv.month}
+            </h2>
+            <p>
+              Gửi mã này cho phụ huynh (chụp màn hình hoặc gửi qua Zalo). Quét
+              là tự điền đúng <b>{money(qrInv.total)}</b> và nội dung chuyển
+              khoản.
+            </p>
+            <div className="qr-zone">
+              <img
+                src={vietQr(settings, qrInv)}
+                alt={`QR chuyển khoản ${money(qrInv.total)}`}
+              />
+              <small>
+                {settings.bankCode} · {settings.bankAccount} ·{" "}
+                {settings.bankHolder}
+                <br />
+                Nội dung: <b>{transferContent(qrInv)}</b>
+              </small>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
@@ -6229,7 +6356,8 @@ function ParentFees({ ping }: { ping: (s: string) => void }) {
                     <small>
                       {bank.bankCode} · {bank.bankAccount} · {bank.bankHolder}
                       <br />
-                      Nội dung: HP {x.month} {x.childName}
+                      Số tiền và nội dung đã điền sẵn trong mã — quét là chuyển
+                      đúng: <b>{transferContent(x)}</b>
                     </small>
                   </>
                 ) : (

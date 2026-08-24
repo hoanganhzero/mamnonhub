@@ -1,7 +1,7 @@
 import { env } from "cloudflare:workers";
 import { eq, inArray } from "drizzle-orm";
 import { getDb } from "../../../db";
-import { classes, incidents, postMedia } from "../../../db/schema";
+import { classes, incidents, menus, postMedia } from "../../../db/schema";
 import { visiblePosts } from "../../../lib/posts";
 import { scopedChildren } from "../../../lib/scope";
 import { currentUser } from "../../../lib/session";
@@ -38,7 +38,7 @@ export async function GET(request: Request) {
           user.role === "superadmin" ||
           scope.rows.some((x) => x.id === incident.childId);
       } else {
-        // Ảnh bìa lớp: mọi thành viên cùng trường xem được.
+        // Ảnh bìa lớp và ảnh thực đơn: mọi thành viên cùng trường xem được.
         const [cover] = await getDb()
           .select()
           .from(classes)
@@ -47,6 +47,16 @@ export async function GET(request: Request) {
         if (cover)
           allowed =
             user.role === "superadmin" || cover.schoolId === user.schoolId;
+        else {
+          const [dish] = await getDb()
+            .select()
+            .from(menus)
+            .where(eq(menus.photoKey, key))
+            .limit(1);
+          if (dish)
+            allowed =
+              user.role === "superadmin" || dish.schoolId === user.schoolId;
+        }
       }
     }
     if (!allowed) return new Response("Forbidden", { status: 403 });

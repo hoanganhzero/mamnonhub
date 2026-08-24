@@ -59,21 +59,22 @@ export const THEMES: Record<
 
 export const DEFAULT_THEME = "mint";
 
-/** Biểu tượng lớp mà giáo viên chọn được. */
-export const MASCOTS = [
-  "🌻",
-  "🌸",
-  "🦋",
-  "🐥",
-  "🐰",
-  "🐻",
-  "🦁",
-  "🐬",
-  "🍀",
-  "🌈",
-  "⭐",
-  "🍎",
+/** Biểu tượng lớp mà giáo viên chọn được, kèm tên gọi thân thương. */
+export const MASCOT_SET: { emoji: string; label: string }[] = [
+  { emoji: "🌻", label: "Hướng dương" },
+  { emoji: "🌸", label: "Hoa đào" },
+  { emoji: "🦋", label: "Bươm bướm" },
+  { emoji: "🐥", label: "Gà con" },
+  { emoji: "🐰", label: "Thỏ trắng" },
+  { emoji: "🐻", label: "Gấu nâu" },
+  { emoji: "🦁", label: "Sư tử" },
+  { emoji: "🐬", label: "Cá heo" },
+  { emoji: "🍀", label: "Cỏ may mắn" },
+  { emoji: "🌈", label: "Cầu vồng" },
+  { emoji: "⭐", label: "Ngôi sao" },
+  { emoji: "🍎", label: "Táo đỏ" },
 ];
+export const MASCOTS = MASCOT_SET.map((x) => x.emoji);
 
 /** Biến CSS ghi đè cho một theme, gắn vào style của khung chính. */
 export function themeVars(theme: string | null | undefined) {

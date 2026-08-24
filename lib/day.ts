@@ -43,3 +43,18 @@ export function monthParam(request: Request) {
   const value = new URL(request.url).searchParams.get("month");
   return isMonth(value) ? value : vnMonth();
 }
+
+/**
+ * Bỏ dấu tiếng Việt và ký tự đặc biệt — nội dung chuyển khoản ngân hàng chỉ
+ * nhận chữ không dấu nên phải chuẩn hóa để phụ huynh quét QR là khớp ngay.
+ */
+export function unaccent(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D")
+    .replace(/[^A-Za-z0-9 ]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
