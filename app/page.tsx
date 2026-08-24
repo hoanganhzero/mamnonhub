@@ -142,12 +142,15 @@ export default function Home() {
       : authUser.role === "admin"
         ? [
             ["🏡", "Tổng quan"],
+            ["🧒", "Hồ sơ trẻ"],
+            ["🙋", "Điểm danh"],
             ["👩🏻‍🏫", "Tài khoản"],
             ["🏫", "Thiết lập"],
             ["🍲", "Thực đơn"],
             ["💰", "Học phí"],
             ["📊", "Báo cáo"],
             ["📣", "Thông báo"],
+            ["💬", "Tin nhắn"],
           ]
         : authUser.role === "teacher"
           ? [
@@ -1078,6 +1081,7 @@ function Admin({
   if (active === "Thiết lập") return <SchoolSetup ping={ping} />;
   if (active === "Hồ sơ trẻ") return <ChildrenManager ping={ping} />;
   if (active === "Điểm danh") return <Attendance ping={ping} />;
+  if (active === "Tin nhắn") return <Messages ping={ping} />;
   if (active === "Thông báo") return <Notices ping={ping} />;
   return <SchoolAdminDashboard setActive={setActive} />;
 }
@@ -1187,6 +1191,27 @@ function SchoolAdminDashboard({
               </i>
               <b>Thông báo</b>
               <small>Gửi thông tin trong hệ thống</small>
+            </button>
+            <button onClick={() => setActive("Hồ sơ trẻ")}>
+              <i>
+                <ChibiIcon icon="🧒" />
+              </i>
+              <b>Hồ sơ trẻ</b>
+              <small>Thêm, sửa và nhập Excel toàn trường</small>
+            </button>
+            <button onClick={() => setActive("Học phí")}>
+              <i>
+                <ChibiIcon icon="💰" />
+              </i>
+              <b>Học phí</b>
+              <small>Biểu phí, phát hành và thu phiếu</small>
+            </button>
+            <button onClick={() => setActive("Báo cáo")}>
+              <i>
+                <ChibiIcon icon="📊" />
+              </i>
+              <b>Báo cáo tháng</b>
+              <small>Chuyên cần, sự cố, nhật ký thao tác</small>
             </button>
           </div>
         </div>
@@ -2423,15 +2448,21 @@ function ChildrenManager({ ping }: { ping: (s: string) => void }) {
         motherPhone: pick(row, ["sđt mẹ", "số điện thoại mẹ"]),
         zaloPhone: pick(row, ["sđt zalo", "số điện thoại zalo", "zalo"]),
       }));
+      // Đang lọc một lớp cụ thể thì cả tệp được nhập thẳng vào lớp đó.
+      const target = classOptions.find((x) => x.name === classFilter);
       const r = await fetch("/api/children", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ items }),
+        body: JSON.stringify({ items, classId: target?.id ?? null }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || "Không thể nhập danh sách");
       await load();
-      ping(`Đã nhập thành công ${d.count} hồ sơ trẻ`);
+      ping(
+        target
+          ? `Đã nhập ${d.count} hồ sơ vào lớp ${target.name}`
+          : `Đã nhập thành công ${d.count} hồ sơ trẻ`,
+      );
     } catch (x) {
       ping(x instanceof Error ? x.message : "Tệp Excel không hợp lệ");
     } finally {
@@ -2654,14 +2685,16 @@ function ChildrenManager({ ping }: { ping: (s: string) => void }) {
               <label>
                 Lớp
                 <select
-                  name="className"
-                  defaultValue={editing?.className || "Lá 1"}
+                  name="classId"
+                  defaultValue={editing?.classId ?? ""}
                 >
-                  <option value="">Chọn lớp</option>
+                  <option value="">Chưa xếp lớp</option>
                   {classOptions
                     .filter((x) => x.status === "active")
                     .map((x) => (
-                      <option key={x.id}>{x.name}</option>
+                      <option key={x.id} value={x.id}>
+                        {x.name}
+                      </option>
                     ))}
                 </select>
               </label>

@@ -57,7 +57,7 @@ export async function POST(request: Request) {
     const user = await scope(request);
     if (!user)
       return Response.json({ error: "Chưa đăng nhập" }, { status: 401 });
-    if (!user.schoolId || user.role !== "teacher")
+    if (!user.schoolId || !["teacher", "admin"].includes(user.role))
       return Response.json(
         { error: "Không có quyền thêm hồ sơ tại trường" },
         { status: 403 },
@@ -159,9 +159,9 @@ export async function PATCH(request: Request) {
     if (!user)
       return Response.json({ error: "Chưa đăng nhập" }, { status: 401 });
     const p = (await request.json()) as Record<string, string | number>;
-    if (!["teacher", "superadmin"].includes(user.role))
+    if (!["teacher", "admin", "superadmin"].includes(user.role))
       return Response.json(
-        { error: "Chỉ giáo viên được cập nhật hồ sơ trẻ" },
+        { error: "Chỉ giáo viên và nhà trường được cập nhật hồ sơ trẻ" },
         { status: 403 },
       );
     const id = Number(p.id);
@@ -225,9 +225,9 @@ export async function DELETE(request: Request) {
     if (!user)
       return Response.json({ error: "Chưa đăng nhập" }, { status: 401 });
     const id = Number(new URL(request.url).searchParams.get("id"));
-    if (!["teacher", "superadmin"].includes(user.role))
+    if (!["teacher", "admin", "superadmin"].includes(user.role))
       return Response.json(
-        { error: "Chỉ giáo viên được xóa hồ sơ trẻ" },
+        { error: "Chỉ giáo viên và nhà trường được xóa hồ sơ trẻ" },
         { status: 403 },
       );
     const target = (
