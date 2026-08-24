@@ -45,7 +45,13 @@ function ChibiIcon({
   icon: string;
   className?: string;
 }) {
-  const name = iconMap[icon] || icon;
+  const name = iconMap[icon];
+  if (!name)
+    return (
+      <span aria-hidden="true" className={`chibi-emoji ${className}`}>
+        {icon}
+      </span>
+    );
   return (
     <span aria-hidden="true" className={`chibi chibi-${name} ${className}`} />
   );
@@ -766,19 +772,6 @@ function SuperAdmin({
     );
   if (active === "Tài khoản")
     return <AccountManager ping={ping} back={() => setActive("Tổng quan")} />;
-  if (active === "Thực đơn")
-    return (
-      <>
-        <PageHead
-          icon="🍲"
-          title="Thực đơn tuần"
-          sub="Nhập một lần, mọi lớp cùng dùng và tự đối chiếu dị ứng"
-        />
-        <MenuBoard ping={ping} editable />
-      </>
-    );
-  if (active === "Học phí") return <FeeManager ping={ping} />;
-  if (active === "Báo cáo") return <ReportBoard />;
   if (!data)
     return (
       <div className="panel empty">Đang tổng hợp dữ liệu toàn hệ thống…</div>
@@ -1083,6 +1076,19 @@ function Admin({
   if (active === "Điểm danh") return <Attendance ping={ping} />;
   if (active === "Tin nhắn") return <Messages ping={ping} />;
   if (active === "Thông báo") return <Notices ping={ping} />;
+  if (active === "Thực đơn")
+    return (
+      <>
+        <PageHead
+          icon="🍲"
+          title="Thực đơn tuần"
+          sub="Nhập một lần, mọi lớp cùng dùng và tự đối chiếu dị ứng"
+        />
+        <MenuBoard ping={ping} editable />
+      </>
+    );
+  if (active === "Học phí") return <FeeManager ping={ping} />;
+  if (active === "Báo cáo") return <ReportBoard />;
   return <SchoolAdminDashboard setActive={setActive} />;
 }
 
