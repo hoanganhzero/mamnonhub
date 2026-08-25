@@ -1434,7 +1434,15 @@ function SchoolSetup({ ping }: { ping: (s: string) => void }) {
     [modal, setModal] = useState<"campus" | "class" | null>(null),
     [editing, setEditing] = useState<Campus | ClassRow | null>(null),
     [uploading, setUploading] = useState(""),
-    [error, setError] = useState("");
+    [error, setError] = useState(""),
+    [studioTab, setStudioTab] = useState<"templates" | "manual" | "ai">("templates"),
+    [designType, setDesignType] = useState<"logo" | "banner">("logo"),
+    [designTitle, setDesignTitle] = useState("Mầm Non Yêu Thương"),
+    [designSubtitle, setDesignSubtitle] = useState("Mỗi ngày đến trường là một ngày vui"),
+    [designIcon, setDesignIcon] = useState("🌱"),
+    [designBg, setDesignBg] = useState("#fff6e8"),
+    [designAccent, setDesignAccent] = useState("#f58278"),
+    [aiPrompt, setAiPrompt] = useState("");
   const load = () =>
     Promise.all([
       fetch("/api/schools").then((r) => r.json()),
@@ -1525,6 +1533,40 @@ function SchoolSetup({ ping }: { ping: (s: string) => void }) {
     }
     setSchool(d.school);
     ping(type === "logo" ? "Đã thay logo mới" : "Đã thay banner mới");
+  }
+  async function uploadBrandBlob(blob: Blob, type: "logo" | "banner") {
+    setUploading(type);
+    const fd = new FormData();
+    fd.set("file", new File([blob], `${type}.png`, { type: "image/png" }));
+    fd.set("type", type);
+    const r = await fetch("/api/branding", { method: "POST", body: fd });
+    const d = await r.json();
+    setUploading("");
+    if (!r.ok) return ping(d.error || "Chưa lưu được hình ảnh");
+    setSchool(d.school);
+    ping(type === "logo" ? "Đã áp dụng logo" : "Đã áp dụng banner");
+  }
+  function makeDesign(preset?: { bg: string; accent: string; icon: string }) {
+    const type = designType, canvas = document.createElement("canvas");
+    canvas.width = type === "logo" ? 700 : 1600; canvas.height = 400;
+    const c = canvas.getContext("2d"); if (!c) return;
+    const bg = preset?.bg || designBg, accent = preset?.accent || designAccent, icon = preset?.icon || designIcon;
+    const g = c.createLinearGradient(0, 0, canvas.width, canvas.height); g.addColorStop(0, bg); g.addColorStop(1, "#ffffff");
+    c.fillStyle = g; c.fillRect(0, 0, canvas.width, canvas.height);
+    c.fillStyle = accent; c.globalAlpha = .18; c.beginPath(); c.arc(canvas.width * .83, 40, 250, 0, Math.PI * 2); c.fill(); c.globalAlpha = 1;
+    c.textAlign = type === "logo" ? "center" : "left"; c.textBaseline = "middle";
+    const x = type === "logo" ? canvas.width / 2 : 120;
+    c.font = type === "logo" ? "86px sans-serif" : "100px sans-serif"; c.fillText(icon, x, 105);
+    c.fillStyle = accent; c.font = `700 ${type === "logo" ? 48 : 62}px Arial`; c.fillText(designTitle || school.name, x, 225);
+    c.fillStyle = "#526a66"; c.font = `500 ${type === "logo" ? 24 : 31}px Arial`; c.fillText(designSubtitle, x, 295);
+    canvas.toBlob((blob) => blob && uploadBrandBlob(blob, type), "image/png");
+  }
+  async function createWithAi() {
+    setUploading(`ai-${designType}`);
+    const r = await fetch("/api/branding-ai", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ type: designType, prompt: aiPrompt }) });
+    const d = await r.json(); setUploading("");
+    if (!r.ok) return ping(d.error || "Chưa tạo được hình ảnh AI");
+    setSchool(d.school); ping("Đã tạo và áp dụng hình ảnh AI");
   }
   async function pickTheme(theme: string) {
     const r = await fetch("/api/schools", {
@@ -1637,44 +1679,22 @@ function SchoolSetup({ ping }: { ping: (s: string) => void }) {
           </label>
         </div>
       </section>
-      <div className="panel brand-guide">
+      <div className="panel brand-studio">
         <Title
-          title="Gợi ý mẫu thiết kế"
-          sub="Đưa kích thước này cho người thiết kế (hoặc dùng Canva) là chuẩn ngay"
+          title="Xưởng nhận diện trường"
+          sub="Chọn mẫu có sẵn, tự thiết kế hoặc tạo bằng AI"
         />
-        <div className="guide-grid">
-          <div>
-            <b>Logo · 700×400 px (7:4)</b>
-            <small>
-              Kiểu chữ tròn mềm + linh vật nhỏ (ong, hoa, mặt trời). Nền trong
-              suốt để hợp mọi bộ màu. Chữ tối thiểu 1/3 chiều cao để nhìn rõ
-              trên điện thoại.
-            </small>
-          </div>
-          <div>
-            <b>Logo huy hiệu</b>
-            <small>
-              Vòng tròn viền kép, tên trường cong theo vành trên, năm thành lập
-              vành dưới — hợp trường muốn vẻ truyền thống.
-            </small>
-          </div>
-          <div>
-            <b>Banner · 1600×400 px (4:1)</b>
-            <small>
-              Ảnh sân trường hoặc lớp học phủ một lớp màu nhạt theo bộ màu của
-              trường, tên trường đặt 1/3 bên trái, tránh chữ ở mép dưới vì bị
-              che trên màn hẹp.
-            </small>
-          </div>
-          <div>
-            <b>Banner minh họa</b>
-            <small>
-              Nền pastel + hình vẽ mây, cầu vồng, bóng bay; hợp khi chưa có ảnh
-              thực tế đẹp. Xuất JPG chất lượng 80 để nhẹ dưới 5 MB.
-            </small>
-          </div>
+        <div className="studio-tabs">{([['templates','Mẫu có sẵn'],['manual','Tự thiết kế'],['ai','Tạo bằng AI']] as const).map(([k,v])=><button key={k} className={studioTab===k?'on':''} onClick={()=>setStudioTab(k)}>{v}</button>)}</div>
+        <div className="studio-target"><button className={designType==='logo'?'on':''} onClick={()=>setDesignType('logo')}>Logo</button><button className={designType==='banner'?'on':''} onClick={()=>setDesignType('banner')}>Banner</button></div>
+        {studioTab === "templates" && <div className="template-grid">
+          {[{name:'Vườn ươm',icon:'🌱',bg:'#fff6e8',accent:'#ef766c'},{name:'Cầu vồng',icon:'🌈',bg:'#eaf7fb',accent:'#4f9dcb'},{name:'Hoa nhỏ',icon:'🌸',bg:'#fff0f5',accent:'#d9688b'}].map(x=><button key={x.name} style={{background:`linear-gradient(135deg,${x.bg},#fff)`}} onClick={()=>makeDesign(x)}><i>{x.icon}</i><b>{x.name}</b><small>Dùng mẫu này</small></button>)}
+        </div>}
+        {studioTab === "manual" && <div className="manual-editor">
+          <div className={`design-preview ${designType}`} style={{background:`linear-gradient(135deg,${designBg},#fff)`,color:designAccent}}><i>{designIcon}</i><b>{designTitle || school.name}</b><small>{designSubtitle}</small></div>
+          <div className="editor-controls"><label>Biểu tượng<select value={designIcon} onChange={e=>setDesignIcon(e.target.value)}>{['🌱','🌈','🌸','☀️','🧸','🏫'].map(x=><option key={x}>{x}</option>)}</select></label><label>Màu nền<input type="color" value={designBg} onChange={e=>setDesignBg(e.target.value)}/></label><label>Màu chính<input type="color" value={designAccent} onChange={e=>setDesignAccent(e.target.value)}/></label><label>Tên hiển thị<input value={designTitle} onChange={e=>setDesignTitle(e.target.value)}/></label><label>Khẩu hiệu<input value={designSubtitle} onChange={e=>setDesignSubtitle(e.target.value)}/></label><button className="save" onClick={()=>makeDesign()} disabled={!!uploading}>Lưu và áp dụng</button></div>
+        </div>}
+        {studioTab === "ai" && <div className="ai-maker"><p>Mô tả phong cách, màu sắc và hình ảnh mong muốn. AI tạo ảnh thật rồi lưu vào trường.</p><textarea value={aiPrompt} onChange={e=>setAiPrompt(e.target.value)} placeholder="Ví dụ: Logo chibi hình mầm cây trong vòng tay, màu san hô và xanh lá, nền sáng…"/><button className="save" onClick={createWithAi} disabled={!aiPrompt.trim() || !!uploading}>{uploading.startsWith('ai-')?'Đang tạo…':'Tạo và áp dụng bằng AI'}</button></div>}
         </div>
-      </div>
       <div className="panel theme-picker">
         <Title
           title="Bộ màu của trường"

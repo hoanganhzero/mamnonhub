@@ -11,6 +11,12 @@ export const THEMES: Record<
     secondary: string;
     navBg: string;
     navText: string;
+    pageBg: string;
+    surface: string;
+    line: string;
+    soft: string;
+    heroFrom: string;
+    heroTo: string;
   }
 > = {
   mint: {
@@ -19,6 +25,7 @@ export const THEMES: Record<
     secondary: "#65b5a4",
     navBg: "#eaf5f1",
     navText: "#41917f",
+    pageBg: "#f5f8f5", surface: "#fffefa", line: "#dfeae5", soft: "#edf7f3", heroFrom: "#fff1e8", heroTo: "#e7f5ef",
   },
   "hoa-dao": {
     label: "Hoa đào",
@@ -26,6 +33,7 @@ export const THEMES: Record<
     secondary: "#c58ac0",
     navBg: "#fbeef3",
     navText: "#c2557a",
+    pageBg: "#fff7fa", surface: "#fffdfd", line: "#f0dfe6", soft: "#fbeef3", heroFrom: "#fff0f4", heroTo: "#f5eafa",
   },
   "bien-xanh": {
     label: "Biển xanh",
@@ -33,6 +41,7 @@ export const THEMES: Record<
     secondary: "#5fb8c9",
     navBg: "#e9f3fb",
     navText: "#33739f",
+    pageBg: "#f4f9fd", surface: "#ffffff", line: "#dbe9f3", soft: "#eaf4fb", heroFrom: "#eaf5fd", heroTo: "#e5f6f7",
   },
   "oai-huong": {
     label: "Oải hương",
@@ -40,6 +49,7 @@ export const THEMES: Record<
     secondary: "#b491d9",
     navBg: "#f2edfa",
     navText: "#71589e",
+    pageBg: "#f8f5fc", surface: "#fffefe", line: "#e7def2", soft: "#f2edfa", heroFrom: "#f6effc", heroTo: "#eee8fa",
   },
   "nang-vang": {
     label: "Nắng vàng",
@@ -47,6 +57,7 @@ export const THEMES: Record<
     secondary: "#c9b458",
     navBg: "#fbf3e2",
     navText: "#a3711f",
+    pageBg: "#fdf9f0", surface: "#fffefa", line: "#eee3cb", soft: "#fbf3e2", heroFrom: "#fff3d7", heroTo: "#f8f4e5",
   },
   "la-non": {
     label: "Lá non",
@@ -54,6 +65,7 @@ export const THEMES: Record<
     secondary: "#8fc27a",
     navBg: "#eef6ea",
     navText: "#4a7c37",
+    pageBg: "#f5faf2", surface: "#fffefa", line: "#dce9d6", soft: "#eef6ea", heroFrom: "#eff8e8", heroTo: "#e5f4e8",
   },
 };
 
@@ -84,5 +96,11 @@ export function themeVars(theme: string | null | undefined) {
     "--mint": t.secondary,
     "--nav-on-bg": t.navBg,
     "--nav-on-text": t.navText,
+    "--page-bg": t.pageBg,
+    "--surface": t.surface,
+    "--line": t.line,
+    "--soft": t.soft,
+    "--hero-from": t.heroFrom,
+    "--hero-to": t.heroTo,
   } as React.CSSProperties;
 }
