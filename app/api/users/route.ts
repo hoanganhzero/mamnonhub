@@ -44,6 +44,7 @@ export async function GET(request: Request) {
         id: user.id,
         username: user.username,
         fullName: user.fullName,
+        phone: user.phone,
         role: user.role,
         status: user.status,
         schoolId: user.schoolId,
@@ -73,6 +74,7 @@ export async function POST(request: Request) {
       username?: string;
       password?: string;
       fullName?: string;
+      phone?: string;
       schoolId?: number;
       childId?: number;
     };
@@ -131,6 +133,7 @@ export async function POST(request: Request) {
         schoolId,
         username,
         fullName: p.fullName.trim(),
+        phone: String(p.phone || "").trim().slice(0, 20),
         passwordHash: await hashPassword(p.password!, salt),
         salt,
         role,
@@ -160,7 +163,12 @@ export async function POST(request: Request) {
       if (!child.parentUserId)
         await getDb()
           .update(children)
-          .set({ parentUserId: user.id })
+          .set({
+            parentUserId: user.id,
+            guardian: user.fullName,
+            phone: user.phone,
+            zaloPhone: user.phone,
+          })
           .where(eq(children.id, child.id));
       await getDb()
         .insert(childGuardians)
@@ -247,7 +255,12 @@ export async function PATCH(request: Request) {
         if (!child.parentUserId)
           await getDb()
             .update(children)
-            .set({ parentUserId: target.id })
+            .set({
+              parentUserId: target.id,
+              guardian: target.fullName,
+              phone: target.phone,
+              zaloPhone: target.phone,
+            })
             .where(eq(children.id, child.id));
         await getDb()
           .insert(childGuardians)

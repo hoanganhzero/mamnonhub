@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, or } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { classes, incidents, menus, postMedia } from "../../../db/schema";
 import { visiblePosts } from "../../../lib/posts";
@@ -51,7 +51,14 @@ export async function GET(request: Request) {
           const [dish] = await getDb()
             .select()
             .from(menus)
-            .where(eq(menus.photoKey, key))
+            .where(
+              or(
+                eq(menus.photoKey, key),
+                eq(menus.breakfastPhotoKey, key),
+                eq(menus.lunchPhotoKey, key),
+                eq(menus.snackPhotoKey, key),
+              ),
+            )
             .limit(1);
           if (dish)
             allowed =

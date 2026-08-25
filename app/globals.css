@@ -455,10 +455,18 @@ td{font-size:14px;padding:10px}
 @media (prefers-reduced-motion: reduce){.mascot-tile{transition:none}.mascot-tile:hover{transform:none}}
 
 /* ── Ảnh món ăn trong thực đơn ── */
-.dish-photo{display:block;margin:8px 0 4px}
-.dish-photo img{width:100%;height:96px;object-fit:cover;border-radius:11px;border:1px solid var(--line);display:block}
+.dish-photo{display:block;width:100%;margin:8px 0 4px;padding:0;border:0;background:transparent;cursor:zoom-in}
+.dish-photo img{width:100%;height:auto;max-height:240px;object-fit:contain;border-radius:11px;border:1px solid var(--line);display:block;background:#f7faf8}
 .dish-upload{display:flex;align-items:center;gap:8px;margin-top:8px}
 .dish-upload .excel-btn{font-size:11px;padding:8px 10px}
+.photo-zoom{z-index:100;display:flex;align-items:center;justify-content:center;cursor:zoom-out}
+.photo-zoom>img{max-width:min(1100px,94vw);max-height:90vh;object-fit:contain;border-radius:16px;background:#fff;box-shadow:0 24px 80px #0008}
+.photo-zoom>.x{position:fixed;top:18px;right:18px;z-index:2;font-size:25px}
+.fee-items{display:grid;gap:9px;margin-bottom:16px}
+.fee-item{display:grid;grid-template-columns:2fr 1fr 1.2fr auto;gap:8px;align-items:center}
+.fee-item input,.fee-item select{margin:0;width:100%;border:1px solid #dfe7e3;border-radius:9px;padding:10px;background:#fbfcfa;color:var(--ink);font:500 12px inherit}
+.invoice-lines.compact{min-width:320px}
+@media(max-width:700px){.fee-item{grid-template-columns:1fr 1fr}.fee-item input:first-child{grid-column:1/-1}}
 .qr-modal{text-align:center}
 .qr-modal h2{font-size:19px}
 .qr-modal p{font-size:14px;color:var(--muted)}

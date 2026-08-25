@@ -329,6 +329,9 @@ export const menus = sqliteTable(
     snack: text("snack").notNull().default(""),
     note: text("note").notNull().default(""),
     photoKey: text("photo_key"),
+    breakfastPhotoKey: text("breakfast_photo_key"),
+    lunchPhotoKey: text("lunch_photo_key"),
+    snackPhotoKey: text("snack_photo_key"),
     updatedBy: integer("updated_by"),
     updatedAt: text("updated_at")
       .notNull()
@@ -357,6 +360,7 @@ export const feeSettings = sqliteTable(
     bankAccount: text("bank_account").notNull().default(""),
     bankHolder: text("bank_holder").notNull().default(""),
     note: text("note").notNull().default(""),
+    itemsJson: text("items_json").notNull().default("[]"),
     updatedAt: text("updated_at")
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),
@@ -380,6 +384,7 @@ export const invoices = sqliteTable(
     status: text("status").notNull().default("Chưa đóng"),
     paidAt: text("paid_at").notNull().default(""),
     note: text("note").notNull().default(""),
+    itemsJson: text("items_json").notNull().default("[]"),
     createdAt: text("created_at")
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),

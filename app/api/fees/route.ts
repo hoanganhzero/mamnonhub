@@ -16,6 +16,22 @@ async function settingsFor(schoolId: number) {
   return row ?? null;
 }
 
+type FeeItem = {
+  id: string;
+  label: string;
+  amount: number;
+  mode: "fixed" | "attendance";
+};
+
+function parseItems(value: string | null | undefined): FeeItem[] {
+  try {
+    const rows = JSON.parse(value || "[]");
+    return Array.isArray(rows) ? rows : [];
+  } catch {
+    return [];
+  }
+}
+
 export async function GET(request: Request) {
   try {
     const user = await currentUser(request);
@@ -48,17 +64,19 @@ export async function GET(request: Request) {
       month,
       settings:
         user.role === "admin"
-          ? settings
+          ? settings && { ...settings, items: parseItems(settings.itemsJson) }
           : settings && {
               bankCode: settings.bankCode,
               bankAccount: settings.bankAccount,
               bankHolder: settings.bankHolder,
               note: settings.note,
+              items: parseItems(settings.itemsJson),
             },
       invoices: rows
         .sort((a, b) => b.month.localeCompare(a.month) || a.childId - b.childId)
         .map((x) => ({
           ...x,
+          items: parseItems(x.itemsJson),
           childName: names.get(x.childId)?.name ?? `Trẻ #${x.childId}`,
           className: names.get(x.childId)?.className ?? "",
         })),
@@ -76,27 +94,33 @@ export async function POST(request: Request) {
         { error: "Chỉ quản trị trường được quản lý học phí" },
         { status: 403 },
       );
-    const p = (await request.json()) as Record<string, string | number>;
+    const p = (await request.json()) as Record<string, unknown>;
 
     if (p.action === "settings") {
       const money = (v: unknown) => {
         const n = Math.round(Number(v) || 0);
         return n >= 0 && n <= 100_000_000 ? n : -1;
       };
-      const tuitionMonthly = money(p.tuitionMonthly),
-        mealPerDay = money(p.mealPerDay),
-        otherFee = money(p.otherFee);
-      if (tuitionMonthly < 0 || mealPerDay < 0 || otherFee < 0)
-        return Response.json(
-          { error: "Số tiền phải từ 0 đến 100 triệu" },
-          { status: 400 },
-        );
+      const rawItems = Array.isArray(p.items) ? p.items : [];
+      if (rawItems.length > 20)
+        return Response.json({ error: "Mỗi trường tối đa 20 khoản thu" }, { status: 400 });
+      const items: FeeItem[] = [];
+      for (const raw of rawItems) {
+        const row = raw as Record<string, unknown>;
+        const label = String(row.label || "").trim().slice(0, 100);
+        const amount = money(row.amount);
+        const mode = row.mode === "attendance" ? "attendance" : "fixed";
+        if (!label || amount < 0)
+          return Response.json({ error: "Tên khoản thu và số tiền chưa hợp lệ" }, { status: 400 });
+        items.push({ id: String(row.id || crypto.randomUUID()), label, amount, mode });
+      }
       const values = {
         schoolId: user.schoolId,
-        tuitionMonthly,
-        mealPerDay,
-        otherFee,
-        otherLabel: String(p.otherLabel || "Phí khác").slice(0, 100),
+        tuitionMonthly: 0,
+        mealPerDay: 0,
+        otherFee: 0,
+        otherLabel: "",
+        itemsJson: JSON.stringify(items),
         bankCode: String(p.bankCode || "")
           .trim()
           .toUpperCase()
@@ -132,6 +156,12 @@ export async function POST(request: Request) {
           { error: "Hãy lưu biểu phí trước khi phát hành" },
           { status: 400 },
         );
+      const configured = parseItems(settings.itemsJson);
+      if (!configured.length)
+        return Response.json(
+          { error: "Hãy thêm ít nhất một khoản thu trước khi phát hành" },
+          { status: 400 },
+        );
       const scope = await scopedChildren(user);
       if (!scope.rows.length)
         return Response.json({ error: "Trường chưa có hồ sơ trẻ" }, { status: 400 });
@@ -153,6 +183,10 @@ export async function POST(request: Request) {
 
       const values = scope.rows.map((child) => {
         const days = mealDays.get(child.id) || 0;
+        const items = configured.map((item) => {
+          const quantity = item.mode === "attendance" ? days : 1;
+          return { ...item, quantity, total: item.amount * quantity };
+        });
         return {
           schoolId: user.schoolId!,
           childId: child.id,
@@ -162,8 +196,8 @@ export async function POST(request: Request) {
           mealPerDay: settings.mealPerDay,
           otherFee: settings.otherFee,
           otherLabel: settings.otherLabel,
-          total:
-            settings.tuitionMonthly + days * settings.mealPerDay + settings.otherFee,
+          itemsJson: JSON.stringify(items),
+          total: items.reduce((sum, item) => sum + item.total, 0),
         };
       });
       // Phiếu đã đóng rồi thì giữ nguyên, chỉ cập nhật phiếu chưa đóng.
@@ -179,6 +213,7 @@ export async function POST(request: Request) {
             mealPerDay: sql`excluded.meal_per_day`,
             otherFee: sql`excluded.other_fee`,
             otherLabel: sql`excluded.other_label`,
+            itemsJson: sql`excluded.items_json`,
             total: sql`excluded.total`,
           },
           setWhere: sql`"invoices"."status" != 'Đã đóng'`,

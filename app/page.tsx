@@ -1242,6 +1242,7 @@ type ManagedUser = {
   id: number;
   username: string;
   fullName: string;
+  phone?: string;
   role: string;
   status: string;
   schoolId?: number | null;
@@ -2115,17 +2116,23 @@ function AccountManager({
               </label>
             )}
             {actor?.role === "teacher" && (
-              <label>
-                Liên kết với trẻ
-                <select name="childId" required>
-                  <option value="">Chọn hồ sơ trẻ</option>
-                  {childOptions.map((x) => (
-                    <option key={x.id} value={x.id}>
-                      {x.name} · {x.className}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <>
+                <label>
+                  Số điện thoại/Zalo phụ huynh
+                  <input name="phone" inputMode="tel" required />
+                </label>
+                <label>
+                  Liên kết với trẻ
+                  <select name="childId" required>
+                    <option value="">Chọn hồ sơ trẻ</option>
+                    {childOptions.map((x) => (
+                      <option key={x.id} value={x.id}>
+                        {x.name} · {x.className}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </>
             )}
             <div className="row">
               <label>
@@ -2760,7 +2767,7 @@ function ChildrenManager({ ping }: { ping: (s: string) => void }) {
                 <input
                   name="guardian"
                   defaultValue={editing?.guardian || ""}
-                  required
+                  placeholder="Có thể bổ sung khi liên kết tài khoản"
                 />
               </label>
               <label>
@@ -2768,7 +2775,7 @@ function ChildrenManager({ ping }: { ping: (s: string) => void }) {
                 <input
                   name="phone"
                   defaultValue={editing?.phone || ""}
-                  required
+                  placeholder="Có thể bổ sung sau"
                 />
               </label>
             </div>
@@ -3641,6 +3648,9 @@ type MenuDay = {
   snack: string;
   note: string;
   photoKey: string | null;
+  breakfastPhotoKey: string | null;
+  lunchPhotoKey: string | null;
+  snackPhotoKey: string | null;
 };
 type MenuWarning = {
   childId: number;
@@ -4486,7 +4496,8 @@ function MenuBoard({
     [warnings, setWarnings] = useState<MenuWarning[]>([]),
     [canEdit, setCanEdit] = useState(false),
     [nav, setNav] = useState({ prev: "", next: "" }),
-    [saving, setSaving] = useState(false);
+    [saving, setSaving] = useState(false),
+    [zoomPhoto, setZoomPhoto] = useState<string | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -4514,6 +4525,7 @@ function MenuBoard({
   async function uploadDish(
     e: React.ChangeEvent<HTMLInputElement>,
     weekday: number,
+    field: "breakfastPhotoKey" | "lunchPhotoKey" | "snackPhotoKey",
   ) {
     const file = e.target.files?.[0];
     e.target.value = "";
@@ -4526,7 +4538,7 @@ function MenuBoard({
       ping(d.error || "Không tải được ảnh món ăn");
       return;
     }
-    edit(weekday, "photoKey", d.media[0].key);
+    edit(weekday, field, d.media[0].key);
     ping("Đã tải ảnh — nhớ bấm Lưu thực đơn tuần");
   }
 
@@ -4583,6 +4595,11 @@ function MenuBoard({
               ] as [keyof MenuDay, string, string, string][]
             ).map(([field, label, icon, mealKey]) => {
               const hits = hitFor(d.weekday, mealKey);
+              const photoField = `${field}PhotoKey` as
+                | "breakfastPhotoKey"
+                | "lunchPhotoKey"
+                | "snackPhotoKey";
+              const photo = d[photoField];
               return (
                 <div className={hits.length ? "meal-warn" : ""} key={field}>
                   <i>
@@ -4605,40 +4622,36 @@ function MenuBoard({
                       {[...new Set(hits.flatMap((h) => h.allergens))].join(", ")}
                     </b>
                   )}
+                  {photo && (
+                    <button
+                      type="button"
+                      className="dish-photo"
+                      onClick={() => setZoomPhoto(photo)}
+                      aria-label={`Phóng to ảnh ${label.toLowerCase()}`}
+                    >
+                      <img src={mediaUrl(photo)} alt={`${label} ${d.label}`} loading="lazy" />
+                    </button>
+                  )}
+                  {writable && (
+                    <div className="dish-upload">
+                      <label className="excel-btn">
+                        {photo ? "Thay ảnh" : "📷 Tải ảnh"}
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          onChange={(e) => uploadDish(e, d.weekday, photoField)}
+                        />
+                      </label>
+                      {photo && (
+                        <button type="button" className="linkbtn" onClick={() => edit(d.weekday, photoField, null)}>
+                          Gỡ ảnh
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}
-            {d.photoKey && (
-              <a
-                href={mediaUrl(d.photoKey)}
-                target="_blank"
-                rel="noreferrer"
-                className="dish-photo"
-              >
-                <img src={mediaUrl(d.photoKey)} alt={`Món ăn ${d.label}`} loading="lazy" />
-              </a>
-            )}
-            {writable && (
-              <div className="dish-upload">
-                <label className="excel-btn">
-                  {d.photoKey ? "Thay ảnh món" : "📷 Ảnh món ăn"}
-                  <input
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp"
-                    onChange={(e) => uploadDish(e, d.weekday)}
-                  />
-                </label>
-                {d.photoKey && (
-                  <button
-                    type="button"
-                    className="linkbtn"
-                    onClick={() => edit(d.weekday, "photoKey", null)}
-                  >
-                    Gỡ ảnh
-                  </button>
-                )}
-              </div>
-            )}
             {writable ? (
               <div className="menu-note">
                 <small>GHI CHÚ</small>
@@ -4690,6 +4703,12 @@ function MenuBoard({
           Không có món nào trùng với danh sách dị ứng của các bé trong tuần này.
         </p>
       )}
+      {zoomPhoto && (
+        <div className="back photo-zoom" onClick={() => setZoomPhoto(null)}>
+          <button className="x" onClick={() => setZoomPhoto(null)} aria-label="Đóng ảnh">×</button>
+          <img src={mediaUrl(zoomPhoto)} alt="Ảnh bữa ăn phóng to" onClick={(e) => e.stopPropagation()} />
+        </div>
+      )}
     </>
   );
 }
@@ -4726,7 +4745,7 @@ function CareArea({ ping }: { ping: (s: string) => void }) {
       {tab === "incident" && <Incidents ping={ping} />}
       {tab === "health" && <HealthBoard ping={ping} />}
       {tab === "assess" && <AssessmentBoard ping={ping} />}
-      {tab === "menu" && <MenuBoard ping={ping} />}
+      {tab === "menu" && <MenuBoard ping={ping} editable />}
     </>
   );
 }
@@ -6020,14 +6039,19 @@ function money(n: number) {
   return `${(n || 0).toLocaleString("vi-VN")} ₫`;
 }
 type FeeSettingsRow = {
-  tuitionMonthly?: number;
-  mealPerDay?: number;
-  otherFee?: number;
-  otherLabel?: string;
+  items: FeeItemRow[];
   bankCode: string;
   bankAccount: string;
   bankHolder: string;
   note: string;
+};
+type FeeItemRow = {
+  id: string;
+  label: string;
+  amount: number;
+  mode: "fixed" | "attendance";
+  quantity?: number;
+  total?: number;
 };
 type InvoiceRow = {
   id: number;
@@ -6043,6 +6067,7 @@ type InvoiceRow = {
   total: number;
   status: string;
   paidAt: string;
+  items: FeeItemRow[];
 };
 /** Nội dung chuyển khoản: không dấu để mọi ngân hàng hiển thị đúng. */
 function transferContent(inv: InvoiceRow) {
@@ -6061,6 +6086,7 @@ function FeeManager({ ping }: { ping: (s: string) => void }) {
     [rows, setRows] = useState<InvoiceRow[]>([]),
     [busy, setBusy] = useState(false),
     [qrInv, setQrInv] = useState<InvoiceRow | null>(null),
+    [feeItems, setFeeItems] = useState<FeeItemRow[]>([]),
     [tick, setTick] = useState(0);
 
   useEffect(() => {
@@ -6070,6 +6096,7 @@ function FeeManager({ ping }: { ping: (s: string) => void }) {
       .then((d) => {
         if (!live) return;
         setSettings(d.settings);
+        setFeeItems(d.settings?.items || []);
         setRows(d.invoices || []);
       })
       .catch(() => {});
@@ -6086,10 +6113,7 @@ function FeeManager({ ping }: { ping: (s: string) => void }) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           action: "settings",
-          tuitionMonthly: Number(f.get("tuitionMonthly")),
-          mealPerDay: Number(f.get("mealPerDay")),
-          otherFee: Number(f.get("otherFee")),
-          otherLabel: String(f.get("otherLabel")),
+          items: feeItems,
           bankCode: String(f.get("bankCode")),
           bankAccount: String(f.get("bankAccount")),
           bankHolder: String(f.get("bankHolder")),
@@ -6148,26 +6172,46 @@ function FeeManager({ ping }: { ping: (s: string) => void }) {
         sub="Tiền ăn tính theo số ngày có mặt thật trong sổ điểm danh"
       />
       <form className="panel fee-settings" onSubmit={saveSettings}>
-        <Title title="Biểu phí của trường" sub="Áp dụng khi phát hành phiếu thu" />
-        <div className="row3">
-          <label>
-            Học phí tháng (₫)
-            <input name="tuitionMonthly" inputMode="numeric" defaultValue={settings?.tuitionMonthly ?? ""} key={`t${settings?.tuitionMonthly}`} />
-          </label>
-          <label>
-            Tiền ăn mỗi ngày (₫)
-            <input name="mealPerDay" inputMode="numeric" defaultValue={settings?.mealPerDay ?? ""} key={`m${settings?.mealPerDay}`} />
-          </label>
-          <label>
-            Phí khác (₫)
-            <input name="otherFee" inputMode="numeric" defaultValue={settings?.otherFee ?? ""} key={`o${settings?.otherFee}`} />
-          </label>
+        <Title title="Các khoản thu của trường" sub="Tự thêm, sửa hoặc xóa; hệ thống không tạo sẵn khoản thu" />
+        <div className="fee-items">
+          {feeItems.map((item, index) => (
+            <div className="fee-item" key={item.id}>
+              <input
+                aria-label="Tên khoản thu"
+                placeholder="Ví dụ: Tiền học tháng"
+                value={item.label}
+                onChange={(e) => setFeeItems((rows) => rows.map((x, i) => i === index ? { ...x, label: e.target.value } : x))}
+                required
+              />
+              <input
+                aria-label="Số tiền"
+                inputMode="numeric"
+                placeholder="Số tiền"
+                value={item.amount || ""}
+                onChange={(e) => setFeeItems((rows) => rows.map((x, i) => i === index ? { ...x, amount: Number(e.target.value) } : x))}
+                required
+              />
+              <select
+                aria-label="Cách tính"
+                value={item.mode}
+                onChange={(e) => setFeeItems((rows) => rows.map((x, i) => i === index ? { ...x, mode: e.target.value as FeeItemRow["mode"] } : x))}
+              >
+                <option value="fixed">Cố định mỗi tháng</option>
+                <option value="attendance">Theo ngày có mặt</option>
+              </select>
+              <button type="button" className="editbtn danger" onClick={() => setFeeItems((rows) => rows.filter((_, i) => i !== index))}>Xóa</button>
+            </div>
+          ))}
+          <button
+            type="button"
+            className="outline"
+            onClick={() => setFeeItems((rows) => [...rows, { id: crypto.randomUUID(), label: "", amount: 0, mode: "fixed" }])}
+          >
+            ＋ Thêm khoản thu
+          </button>
+          {!feeItems.length && <p className="empty">Chưa có khoản thu. Bấm “Thêm khoản thu” để tự cấu hình.</p>}
         </div>
         <div className="row3">
-          <label>
-            Tên phí khác
-            <input name="otherLabel" defaultValue={settings?.otherLabel ?? "Phí khác"} key={`l${settings?.otherLabel}`} />
-          </label>
           <label>
             Mã ngân hàng (VietQR)
             <input name="bankCode" placeholder="VCB, TCB, MB…" defaultValue={settings?.bankCode ?? ""} key={`b${settings?.bankCode}`} />
@@ -6207,10 +6251,7 @@ function FeeManager({ ping }: { ping: (s: string) => void }) {
           <thead>
             <tr>
               <th>TRẺ</th>
-              <th>HỌC PHÍ</th>
-              <th>NGÀY ĂN</th>
-              <th>TIỀN ĂN</th>
-              <th>KHÁC</th>
+              <th>CHI TIẾT KHOẢN THU</th>
               <th>TỔNG</th>
               <th>TRẠNG THÁI</th>
             </tr>
@@ -6222,10 +6263,17 @@ function FeeManager({ ping }: { ping: (s: string) => void }) {
                   <b>{x.childName}</b>
                   <small>{x.className}</small>
                 </td>
-                <td>{money(x.tuition)}</td>
-                <td>{x.mealDays} ngày</td>
-                <td>{money(x.mealDays * x.mealPerDay)}</td>
-                <td>{money(x.otherFee)}</td>
+                <td>
+                  <div className="invoice-lines compact">
+                    {(x.items || []).map((item) => (
+                      <span key={item.id}>
+                        {item.label}
+                        {item.mode === "attendance" && ` · ${item.quantity || 0} ngày × ${money(item.amount)}`}
+                        <b>{money(item.total ?? item.amount)}</b>
+                      </span>
+                    ))}
+                  </div>
+                </td>
                 <td>
                   <b>{money(x.total)}</b>
                 </td>
@@ -6336,17 +6384,13 @@ function ParentFees({ ping }: { ping: (s: string) => void }) {
               </span>
             </header>
             <div className="invoice-lines">
-              <span>
-                Học phí <b>{money(x.tuition)}</b>
-              </span>
-              <span>
-                Tiền ăn {x.mealDays} ngày × {money(x.mealPerDay)} <b>{money(x.mealDays * x.mealPerDay)}</b>
-              </span>
-              {x.otherFee > 0 && (
-                <span>
-                  {x.otherLabel || "Phí khác"} <b>{money(x.otherFee)}</b>
+              {(x.items || []).map((item) => (
+                <span key={item.id}>
+                  {item.label}
+                  {item.mode === "attendance" && ` · ${item.quantity || 0} ngày × ${money(item.amount)}`}
+                  <b>{money(item.total ?? item.amount)}</b>
                 </span>
-              )}
+              ))}
             </div>
             {x.status !== "Đã đóng" && bank?.bankCode && bank?.bankAccount && (
               <div className="qr-zone">

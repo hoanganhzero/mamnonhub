@@ -46,6 +46,9 @@ export async function GET(request: Request) {
         snack: row?.snack ?? "",
         note: row?.note ?? "",
         photoKey: row?.photoKey ?? null,
+        breakfastPhotoKey: row?.breakfastPhotoKey ?? null,
+        lunchPhotoKey: row?.lunchPhotoKey ?? row?.photoKey ?? null,
+        snackPhotoKey: row?.snackPhotoKey ?? null,
       };
     });
 
@@ -77,7 +80,7 @@ export async function GET(request: Request) {
       nextWeek: addDays(weekStart, 7),
       days,
       warnings,
-      canEdit: user.role === "admin" || user.role === "superadmin",
+      canEdit: ["admin", "teacher"].includes(user.role),
     });
   } catch (error) {
     return Response.json({ error: String(error) }, { status: 500 });
@@ -87,9 +90,9 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const user = await currentUser(request);
-    if (!user?.schoolId || user.role !== "admin")
+    if (!user?.schoolId || !["admin", "teacher"].includes(user.role))
       return Response.json(
-        { error: "Chỉ quản trị trường được cập nhật thực đơn" },
+        { error: "Chỉ quản trị trường và giáo viên được cập nhật thực đơn" },
         { status: 403 },
       );
     const body = (await request.json()) as {
@@ -111,12 +114,10 @@ export async function POST(request: Request) {
           { error: `Ngày không hợp lệ: ${day.weekday}` },
           { status: 400 },
         );
-      const photoKey = String(day.photoKey || "");
-      if (photoKey && !photoKey.startsWith(`media/${user.schoolId}/`))
-        return Response.json(
-          { error: "Ảnh không thuộc trường" },
-          { status: 403 },
-        );
+      const photos = ["breakfastPhotoKey", "lunchPhotoKey", "snackPhotoKey"]
+        .map((field) => [field, String(day[field] || "")] as const);
+      if (photos.some(([, key]) => key && !key.startsWith(`media/${user.schoolId}/`)))
+        return Response.json({ error: "Ảnh không thuộc trường" }, { status: 403 });
       values.push({
         schoolId: user.schoolId,
         weekStart,
@@ -125,7 +126,10 @@ export async function POST(request: Request) {
         lunch: String(day.lunch || "").slice(0, 300),
         snack: String(day.snack || "").slice(0, 300),
         note: String(day.note || "").slice(0, 300),
-        photoKey: photoKey || null,
+        photoKey: photos[1][1] || null,
+        breakfastPhotoKey: photos[0][1] || null,
+        lunchPhotoKey: photos[1][1] || null,
+        snackPhotoKey: photos[2][1] || null,
         updatedBy: user.id,
         updatedAt: sql`CURRENT_TIMESTAMP`,
       });
@@ -143,6 +147,9 @@ export async function POST(request: Request) {
           snack: sql`excluded.snack`,
           note: sql`excluded.note`,
           photoKey: sql`excluded.photo_key`,
+          breakfastPhotoKey: sql`excluded.breakfast_photo_key`,
+          lunchPhotoKey: sql`excluded.lunch_photo_key`,
+          snackPhotoKey: sql`excluded.snack_photo_key`,
           updatedBy: sql`excluded.updated_by`,
           updatedAt: sql`CURRENT_TIMESTAMP`,
         },

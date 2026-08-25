@@ -43,12 +43,15 @@ export async function GET(request: Request) {
     if (!user)
       return Response.json({ error: "Chưa đăng nhập" }, { status: 401 });
     const result = await scopedChildren(user, classParam(request));
-    return Response.json({
-      children: result.rows,
-      classes: result.classes,
-      scope: result.scope,
-      classId: result.classId,
-    });
+    return Response.json(
+      {
+        children: result.rows,
+        classes: result.classes,
+        scope: result.scope,
+        classId: result.classId,
+      },
+      { headers: { "cache-control": "no-store" } },
+    );
   } catch (error) {
     return Response.json({ error: String(error) }, { status: 500 });
   }
