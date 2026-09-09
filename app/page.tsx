@@ -238,14 +238,16 @@ export default function Home() {
                 ? "Trung tâm điều hành"
                 : role === "admin"
                   ? "Quản trị trường"
-                  : "Lớp đang quản lý"}
+                  : "Lớp đang phụ trách"}
             </small>
             <b>
               {authUser.role === "superadmin"
                 ? "Tất cả trường"
                 : role === "admin"
                   ? authUser.schoolName
-                  : "Lớp đang phụ trách"}
+                  : authUser.assignedClasses?.length
+                    ? authUser.assignedClasses.map((item) => item.name).join(", ")
+                    : "Chưa được phân công lớp"}
             </b>
           </div>
           <div className="tools">
@@ -409,6 +411,7 @@ type AuthUser = {
   schoolName: string;
   schoolCode: string;
   academicYear: string;
+  assignedClasses?: { id: number; name: string }[];
 };
 function AuthScreen({ onLogin }: { onLogin: (u: AuthUser) => void }) {
   const [error, setError] = useState(""),
@@ -2897,6 +2900,7 @@ type AttRow = {
   className: string;
   classId: number | null;
   allergy: string;
+  avatarKey: string | null;
   status: string;
   note: string;
   checkInAt: string;
@@ -3295,9 +3299,18 @@ function Attendance({ ping }: { ping: (s: string) => void }) {
             const status = draft[x.childId]?.status || "Có mặt";
             return (
               <div className="att-card" key={x.childId}>
-                <i>
-                  <ChibiIcon icon="🧒" />
-                </i>
+                {x.avatarKey ? (
+                  <img
+                    className="att-avatar"
+                    src={`/api/avatar?key=${encodeURIComponent(x.avatarKey)}`}
+                    alt={`Ảnh ${x.name}`}
+                    loading="lazy"
+                  />
+                ) : (
+                  <i>
+                    <ChibiIcon icon="🧒" />
+                  </i>
+                )}
                 <b>{x.name}</b>
                 <small>
                   {x.className}
@@ -4558,8 +4571,21 @@ function MenuBoard({
       ping(d.error || "Không tải được ảnh món ăn");
       return;
     }
-    edit(weekday, field, d.media[0].key);
-    ping("Đã tải ảnh — nhớ bấm Lưu thực đơn tuần");
+    const nextDays = days.map((day) =>
+      day.weekday === weekday ? { ...day, [field]: d.media[0].key } : day,
+    );
+    setDays(nextDays);
+    const saved = await fetch("/api/menus", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ weekStart: week, days: nextDays }),
+      }),
+      result = await saved.json();
+    if (!saved.ok) {
+      ping(result.error || "Ảnh đã tải nhưng chưa lưu được vào thực đơn");
+      return;
+    }
+    ping("Đã tải và lưu ảnh món ăn");
   }
 
   async function save() {

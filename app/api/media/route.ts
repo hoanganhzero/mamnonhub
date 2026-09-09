@@ -17,12 +17,17 @@ export async function GET(request: Request) {
     const key = new URL(request.url).searchParams.get("key");
     if (!key) return new Response("Not found", { status: 404 });
 
+    // Nhân sự cùng trường được xem trước ảnh vừa tải trước khi lưu bản ghi.
+    const pendingUpload =
+      ["teacher", "admin", "superadmin"].includes(user.role) &&
+      key.startsWith(`media/${user.schoolId ?? 0}/`);
+
     const [media] = await getDb()
       .select()
       .from(postMedia)
       .where(eq(postMedia.mediaKey, key))
       .limit(1);
-    let allowed = false;
+    let allowed = pendingUpload;
     if (media) {
       const visible = await visiblePosts(user);
       allowed = visible.ids === null || visible.ids.includes(media.postId);
