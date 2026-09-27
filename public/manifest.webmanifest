@@ -1,0 +1,32 @@
+{
+  "id": "/",
+  "name": "Mầm Non Yêu Thương",
+  "short_name": "Mầm Non",
+  "description": "Kết nối nhà trường, giáo viên và phụ huynh",
+  "lang": "vi",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#fff1f2",
+  "theme_color": "#ec4899",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
