@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import "./chibi.css";
 import * as XLSX from "xlsx";
+import { downloadStyledRegister } from "../lib/styled-register";
 import {
   formatDate,
   formatDateTime,
@@ -2689,6 +2690,23 @@ function excelDate(value: unknown) {
 function put(sheet: XLSX.WorkSheet, address: string, value: string | number) {
   const previous = sheet[address] || {};
   sheet[address] = { ...previous, t: typeof value === "number" ? "n" : "s", v: value };
+  delete sheet[address].f;
+  delete sheet[address].w;
+}
+
+function fillSyll(book: XLSX.WorkBook, children: Child[]) {
+  if (children.length > 53) throw new Error('Mẫu SYLL có 53 dòng. Vui lòng chọn một lớp để xuất đủ thông tin.');
+  const sheet = book.Sheets.SYLL;
+  for (let row = 6; row <= 58; row++)
+    for (const col of 'ABCDEFGHIJKLMNOP') put(sheet, `${col}${row}`, '');
+  children.forEach((child,index) => {
+    const values = [index+1,child.enrollmentNumber || '',child.spc || '',child.name,
+      formatDate(child.birthDate),child.gender === 'Nữ' ? 'x' : '',child.addressHamlet || '',
+      child.addressCommune || '',child.addressProvince || '',child.fatherName || '',
+      child.fatherJob || '',child.fatherWorkplace || '',child.motherName || '',
+      child.motherJob || '',child.motherWorkplace || '',child.phone || ''];
+    values.forEach((value,col) => put(sheet,`${XLSX.utils.encode_col(col)}${index+6}`,value));
+  });
 }
 
 async function attendanceTemplate() {
@@ -2851,7 +2869,7 @@ function ChildrenManager({ ping }: { ping: (s: string) => void }) {
           x.motherJob || "", x.motherWorkplace || "", x.phone || ""];
         values.forEach((value, col) => put(sheet, `${XLSX.utils.encode_col(col)}${row}`, value));
       });
-      XLSX.writeFile(book, "so-theo-doi-tre.xlsx", { bookType: "xlsx", cellStyles: true });
+      await downloadStyledRegister(book, "so-theo-doi-tre.xlsx");
       ping("Đã xuất đúng mẫu sổ với sheet SYLL");
     } catch (error) {
       ping(error instanceof Error ? error.message : "Không xuất được sổ");
@@ -3313,6 +3331,7 @@ function DayBar({
 }
 
 function Attendance({ ping }: { ping: (s: string) => void }) {
+  const [schoolDayOverride, setSchoolDayOverride] = useState<number | null>(null);
   const [date, setDate] = useState(vnToday()),
     [today, setToday] = useState(vnToday()),
     [classId, setClassId] = useState(""),
@@ -3567,10 +3586,22 @@ function Attendance({ ping }: { ping: (s: string) => void }) {
           ghi đè.
         </p>
       )}
-      {rows.length > 0 && (
-        <p className="export-line">
+      <div className="panel attendance-export">
+        <div>
+          <h2>Sổ chuyên cần theo mẫu</h2>
+          <p>Chọn lớp ở phía trên, chọn tháng rồi tải sổ Excel gồm bìa sổ, SYLL và bảng chuyên cần.</p>
+        </div>
+        <label>
+          Tháng xuất sổ
+          <input type="month" value={date.slice(0, 7)} onChange={(e) => { if(e.target.value) { setDate(`${e.target.value}-01`); setSchoolDayOverride(null); } }} />
+        </label>
+        <label>
+          Số ngày học quy định trong tháng
+          <input type="number" min="1" max="31" value={schoolDayOverride ?? Array.from({length:new Date(Number(date.slice(0,4)),Number(date.slice(5,7)),0).getDate()},(_,index)=>new Date(Number(date.slice(0,4)),Number(date.slice(5,7))-1,index+1).getDay()).filter((day)=>day!==0&&day!==6).length} onChange={(e)=>setSchoolDayOverride(Number(e.target.value)||null)} />
+          <small>Mặc định thứ hai–thứ sáu; điều chỉnh nếu có ngày nghỉ lễ hoặc học bù.</small>
+        </label>
           <button
-            className="linkbtn"
+            className="save"
             onClick={async () => {
               try {
                 const month = date.slice(0, 7), params = new URLSearchParams({ month });
@@ -3585,17 +3616,28 @@ function Attendance({ ping }: { ping: (s: string) => void }) {
                   const column = XLSX.utils.encode_col(day + 2);
                   put(sheet, `${column}2`, day <= daysInMonth ? day : "");
                   put(sheet, `${column}3`, day <= daysInMonth
-                    ? ["CN", "T2", "T3", "T4", "T5", "T6", "T7"][new Date(year, monthNumber - 1, day).getDay()]
+                    ? ["CN", "hai", "ba", "tư", "năm", "sáu", "bảy"][new Date(year, monthNumber - 1, day).getDay()]
                     : "");
                 }
-                const children = (d.children || []) as { childId: number; name: string; className: string }[];
+                const children = (d.children || []) as (Child & { childId: number })[];
+                if (new Set(children.map((child) => child.className)).size > 1) throw new Error('Vui lòng chọn một lớp để xuất sổ riêng cho GVCN.');
+                fillSyll(book, children);
+                const cover = book.Sheets['bia sổ'];
+                put(cover, 'A10', `Trường: ${d.school?.name || ''}`);
+                put(cover, 'A11', `Xã: ${children[0]?.addressCommune || ''}`);
+                put(cover, 'A12', `Tỉnh: ${children[0]?.addressProvince || ''}`);
+                put(cover, 'A26', `Lớp: ${children[0]?.className || classes.find((item) => String(item.id) === classId)?.name || ''}`);
+                put(cover, 'A27', `Họ và tên giáo viên phụ trách: ${d.teacherName || ''}`);
+                put(cover, 'A28', ''); put(cover, 'A29', '');
+                put(cover, 'A30', `NĂM HỌC: ${d.school?.academicYear || ''}`);
                 const marks = (d.marks || []) as { childId: number; date: string; status: string }[];
                 const code = (status: string) => status === "Có mặt" ? "" : status === "Vắng buổi sáng" ? "S" : status === "Vắng buổi chiều" ? "C" : "N";
-                for (let row = 4; row <= 37; row++) {
+                if (children.length > 36) throw new Error('Mẫu sổ có 36 dòng. Vui lòng chọn một lớp để xuất đầy đủ danh sách.');
+                for (let row = 4; row <= 39; row++) {
                   put(sheet, `A${row}`, ""); put(sheet, `B${row}`, ""); put(sheet, `AI${row}`, "");
                   for (let day = 1; day <= 31; day++) put(sheet, `${XLSX.utils.encode_col(day + 2)}${row}`, "");
                 }
-                children.slice(0, 34).forEach((child, index) => {
+                children.forEach((child, index) => {
                   const row = index + 4;
                   put(sheet, `A${row}`, index + 1); put(sheet, `B${row}`, child.name);
                   let attended = 0;
@@ -3613,19 +3655,31 @@ function Attendance({ ping }: { ping: (s: string) => void }) {
                 for (let day = 1; day <= daysInMonth; day++) {
                   const dayMarks = marks.filter((x) => Number(x.date.slice(8)) === day);
                   const count = dayMarks.reduce((sum, x) => sum + (x.status === "Có mặt" ? 1 : ["Vắng buổi sáng", "Vắng buổi chiều"].includes(x.status) ? 0.5 : 0), 0);
-                  put(sheet, `${XLSX.utils.encode_col(day + 2)}42`, count || "");
+                  put(sheet, `${XLSX.utils.encode_col(day + 2)}40`, count);
                 }
-                XLSX.writeFile(book, `so-theo-doi-chuyen-can-${month}.xlsx`, { bookType: "xlsx", cellStyles: true });
+                const recordedDays = new Set(marks.map((mark) => mark.date)).size;
+                const requiredDays = schoolDayOverride ?? Array.from({length:daysInMonth},(_,index)=>new Date(year,monthNumber-1,index+1).getDay()).filter((day)=>day!==0&&day!==6).length;
+                if(requiredDays < 1 || requiredDays > 31) throw new Error('Số ngày học quy định phải từ 1 đến 31.');
+                const totalPresent = marks.reduce((sum,mark) => sum + (mark.status === 'Có mặt' ? 1 : ['Vắng buổi sáng','Vắng buổi chiều'].includes(mark.status) ? 0.5 : 0), 0);
+                const regularChildren = Math.round(totalPresent / requiredDays);
+                put(sheet,'B42',`TS trẻ: ${children.length}`);
+                put(sheet,'H44',totalPresent);
+                put(sheet,'H45',requiredDays);
+                put(sheet,'H46',regularChildren);
+                put(sheet,'C48',children.length ? `${(regularChildren / children.length * 100).toFixed(2)}%` : '0%');
+                put(sheet,'AJ44',`Đã lưu điểm danh ${recordedDays}/${requiredDays} ngày.`);
+                put(sheet,'AJ45','Ngày chưa lưu không tính có mặt.');
+                await downloadStyledRegister(book, `so-theo-doi-chuyen-can-${month}.xlsx`);
                 ping(`Đã xuất sổ chuyên cần tháng ${formatMonth(month)} đúng mẫu`);
               } catch (error) {
                 ping(error instanceof Error ? error.message : "Không xuất được bảng chuyên cần");
               }
             }}
           >
-            ⇩ Xuất sổ chuyên cần tháng {formatMonth(date.slice(0, 7))} (trống = có mặt · N/S/C = nghỉ)
+            ⇩ Tải sổ chuyên cần .xlsx
           </button>
-        </p>
-      )}
+        <small>Quy ước: trống = có mặt · N = nghỉ cả ngày · S = nghỉ sáng · C = nghỉ chiều.</small>
+      </div>
       <div className="panel">
         <div className="att-grid">
           {rows.map((x) => {

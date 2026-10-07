@@ -1,6 +1,6 @@
 import { and, eq, gte, like, lte, sql } from "drizzle-orm";
 import { getDb } from "../../../db";
-import { attendance, leaveRequests } from "../../../db/schema";
+import { attendance, leaveRequests, schools } from "../../../db/schema";
 import { ATTENDANCE_STATUSES } from "../../../lib/care";
 import { dateParam, isDate, isMonth, isTime, vnToday } from "../../../lib/day";
 import { rowChunks } from "../../../lib/batch";
@@ -67,7 +67,10 @@ export async function GET(request: Request) {
         : [];
       return Response.json({
         month,
+        school: user.schoolId ? (await getDb().select().from(schools).where(eq(schools.id,user.schoolId)).limit(1))[0] : null,
+        teacherName: user.role === 'teacher' ? user.fullName : '',
         children: scope.rows.map((x) => ({
+          ...x,
           childId: x.id,
           name: x.name,
           className: x.className,
