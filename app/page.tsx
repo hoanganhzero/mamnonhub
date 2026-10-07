@@ -2,7 +2,14 @@
 import { useEffect, useState } from "react";
 import "./chibi.css";
 import * as XLSX from "xlsx";
-import { unaccent, vnNow, vnToday } from "../lib/day";
+import {
+  formatDate,
+  formatDateTime,
+  formatMonth,
+  unaccent,
+  vnNow,
+  vnToday,
+} from "../lib/day";
 import { MASCOT_SET, THEMES, themeVars } from "../lib/themes";
 import { weekStartOf } from "../lib/week";
 
@@ -57,6 +64,20 @@ function ChibiIcon({
   );
 }
 
+type StaffPosition = "principal" | "boarding_vp" | "accountant" | "school_admin";
+const STAFF_POSITION_LABELS: Record<StaffPosition, string> = {
+  principal: "Hiệu trưởng",
+  boarding_vp: "Phó hiệu trưởng phụ trách bán trú",
+  accountant: "Kế toán",
+  school_admin: "Quản trị nhà trường",
+};
+function staffPosition(user: Pick<AuthUser, "role" | "position">): StaffPosition {
+  if (user.role !== "admin") return "school_admin";
+  return user.position && user.position in STAFF_POSITION_LABELS
+    ? (user.position as StaffPosition)
+    : "principal";
+}
+
 export default function Home() {
   const [role, setRole] = useState<"admin" | "teacher" | "parent">("teacher"),
     [active, setActive] = useState("Tổng quan"),
@@ -68,6 +89,7 @@ export default function Home() {
       items: { kind: string; label: string; count: number; target: string }[];
     }>({ total: 0, items: [] }),
     [alertsOpen, setAlertsOpen] = useState(false),
+    [mobileMenuOpen, setMobileMenuOpen] = useState(false),
     [schoolBrand, setSchoolBrand] = useState<SchoolBrand | null>(null),
     [authReady, setAuthReady] = useState(false);
   useEffect(() => {
@@ -100,6 +122,14 @@ export default function Home() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authUser?.schoolId, active]);
+  useEffect(() => {
+    const updateBrand = (event: Event) => {
+      const detail = (event as CustomEvent<SchoolBrand>).detail;
+      if (detail) setSchoolBrand(detail);
+    };
+    window.addEventListener("school-brand-updated", updateBrand);
+    return () => window.removeEventListener("school-brand-updated", updateBrand);
+  }, []);
   const ping = (s: string) => {
     setToast(s);
     setTimeout(() => setToast(""), 2200);
@@ -121,7 +151,7 @@ export default function Home() {
   if (!authReady)
     return (
       <div className="auth-loading">
-        <img src="/loading-logo.png" alt="Logo Mầm Non Yêu Thương" />
+        <img src="/pwa/brand-mark.png" alt="Logo Mầm Non Yêu Thương" />
         <p>Đang mở Mầm Non Yêu Thương…</p>
       </div>
     );
@@ -137,48 +167,59 @@ export default function Home() {
         }}
       />
     );
-  const navItems =
-    authUser.role === "superadmin"
+  const position = staffPosition(authUser);
+  const adminGroups: [string, string[][]][] =
+    position === "boarding_vp"
       ? [
-          ["🏡", "Tổng quan"],
-          ["🏫", "Trường học"],
-          ["🔐", "Tài khoản"],
-          ["📊", "Báo cáo"],
+          ["ĐIỀU HÀNH", [["🏡", "Tổng quan"], ["🍱", "Bán trú"], ["📊", "Báo cáo"]]],
+          ["NGHIỆP VỤ", [["🙋", "Điểm danh"], ["🍲", "Thực đơn"], ["🧒", "Hồ sơ trẻ"]]],
+          ["PHỐI HỢP", [["👨‍👩‍👧", "Phối hợp phụ huynh"], ["📣", "Thông báo"], ["💬", "Tin nhắn"]]],
         ]
-      : authUser.role === "admin"
+      : position === "accountant"
         ? [
-            ["🏡", "Tổng quan"],
-            ["🧒", "Hồ sơ trẻ"],
-            ["🙋", "Điểm danh"],
-            ["👩🏻‍🏫", "Tài khoản"],
-            ["🏫", "Thiết lập"],
-            ["🍲", "Thực đơn"],
-            ["💰", "Học phí"],
-            ["📊", "Báo cáo"],
-            ["📣", "Thông báo"],
-            ["💬", "Tin nhắn"],
+            ["TỔNG HỢP", [["🏡", "Tổng quan"], ["🍱", "Bán trú"], ["📊", "Báo cáo"]]],
+            ["TÀI CHÍNH", [["💰", "Học phí"], ["🍲", "Thực đơn"]]],
+            ["PHỐI HỢP", [["📣", "Thông báo"], ["💬", "Tin nhắn"]]],
           ]
+        : [
+            ["ĐIỀU HÀNH", [["🏡", "Tổng quan"], ["📊", "Báo cáo"], ["🍱", "Bán trú"]]],
+            ["NHÀ TRƯỜNG", [["🏫", "Thiết lập"], ["👩🏻‍🏫", "Tài khoản"], ["🧒", "Hồ sơ trẻ"], ["🙋", "Điểm danh"]]],
+            ["TÀI CHÍNH", [["💰", "Học phí"], ["🍲", "Thực đơn"]]],
+            ["PHỐI HỢP", [["👨‍👩‍👧", "Phối hợp phụ huynh"], ["📣", "Thông báo"], ["💬", "Tin nhắn"]]],
+          ];
+  const navGroups: [string, string[][]][] =
+    authUser.role === "superadmin"
+      ? [["HỆ THỐNG", [["🏡", "Tổng quan"], ["🏫", "Trường học"], ["🔐", "Tài khoản"], ["📊", "Báo cáo"]]]]
+      : authUser.role === "admin"
+        ? adminGroups
         : authUser.role === "teacher"
           ? [
-              ["🏡", "Tổng quan"],
-              ["🙋", "Điểm danh"],
-              ["♥", "Sổ chăm sóc"],
-              ["✎", "Nhật ký"],
-              ["💬", "Tin nhắn"],
-              ["🧒", "Hồ sơ trẻ"],
-              ["📣", "Thông báo"],
-              ["👨‍👩‍👧", "Phụ huynh"],
+              ["LỚP HÔM NAY", [["🏡", "Tổng quan"], ["📊", "Biểu mẫu lớp"], ["🙋", "Điểm danh"], ["♥", "Sổ chăm sóc"], ["✎", "Nhật ký"]]],
+              ["GIA ĐÌNH", [["👨‍👩‍👧", "Phối hợp phụ huynh"], ["💬", "Tin nhắn"], ["📣", "Thông báo"], ["👨‍👩‍👧", "Phụ huynh"]]],
+              ["HỒ SƠ", [["🧒", "Hồ sơ trẻ"], ["📊", "Báo cáo lớp"]]],
             ]
           : [
-              ["👨‍👩‍👧", "Hôm nay của con"],
-              ["✎", "Nhật ký"],
-              ["💬", "Tin nhắn"],
-              ["☁️", "Xin nghỉ"],
-              ["📣", "Thông báo"],
-              ["💗", "Sức khỏe"],
-              ["🍲", "Thực đơn"],
-              ["💰", "Học phí"],
+              ["CON Ở TRƯỜNG", [["👨‍👩‍👧", "Hôm nay của con"], ["✎", "Nhật ký"], ["💗", "Sức khỏe"], ["🍲", "Thực đơn"]]],
+              ["PHỐI HỢP VỚI CÔ", [["👨‍👩‍👧", "Phối hợp với cô"], ["💬", "Tin nhắn"], ["☁️", "Xin nghỉ"], ["📣", "Thông báo"]]],
+              ["KHOẢN THU", [["💰", "Học phí"]]],
             ];
+  const navItems = navGroups.flatMap(([, items]) => items);
+  const mobilePrimaryNames =
+    authUser.role === "superadmin"
+      ? ["Tổng quan", "Trường học", "Tài khoản", "Báo cáo"]
+      : authUser.role === "teacher"
+      ? ["Tổng quan", "Biểu mẫu lớp", "Điểm danh", "Tin nhắn"]
+      : authUser.role === "parent"
+        ? ["Hôm nay của con", "Nhật ký", "Tin nhắn", "Học phí"]
+        : position === "accountant"
+          ? ["Tổng quan", "Học phí", "Báo cáo", "Tin nhắn"]
+          : position === "boarding_vp"
+            ? ["Tổng quan", "Bán trú", "Báo cáo", "Tin nhắn"]
+            : ["Tổng quan", "Báo cáo", "Bán trú", "Thông báo"];
+  const mobilePrimary = mobilePrimaryNames
+    .map((name) => navItems.find(([, item]) => item === name))
+    .filter(Boolean) as string[][];
+  const mobileMore = navItems.filter(([, name]) => !mobilePrimaryNames.includes(name));
   return (
     <main className="shell" style={themeVars(schoolBrand?.theme)}>
       <aside>
@@ -187,7 +228,7 @@ export default function Home() {
             src={
               schoolBrand?.logoKey
                 ? `/api/branding?key=${encodeURIComponent(schoolBrand.logoKey)}`
-                : "/mam-non-yeu-thuong-logo.png"
+                : "/pwa/brand-logo.png"
             }
             alt={schoolBrand?.name || "Mầm Non Yêu Thương"}
           />
@@ -204,22 +245,23 @@ export default function Home() {
           </div>
         </div>
         <nav>
-          {navItems.map(([i, n]) => (
-            <button
-              className={active === n ? "on" : ""}
-              key={n}
-              onClick={() => {
-                setActive(n);
-              }}
-            >
-              <i>
-                <ChibiIcon icon={i} />
-              </i>
-              {n}
-              {alerts.items.find((a) => a.target === n) && (
-                <em>{alerts.items.find((a) => a.target === n)!.count}</em>
-              )}
-            </button>
+          {navGroups.map(([group, items]) => (
+            <div className="nav-group" key={group}>
+              <small>{group}</small>
+              {items.map(([i, n]) => (
+                <button
+                  className={active === n ? "on" : ""}
+                  key={n}
+                  onClick={() => setActive(n)}
+                >
+                  <i><ChibiIcon icon={i} /></i>
+                  {n}
+                  {alerts.items.find((a) => a.target === n) && (
+                    <em>{alerts.items.find((a) => a.target === n)!.count}</em>
+                  )}
+                </button>
+              ))}
+            </div>
           ))}
         </nav>
         <div className="help">
@@ -237,7 +279,7 @@ export default function Home() {
               {authUser.role === "superadmin"
                 ? "Trung tâm điều hành"
                 : role === "admin"
-                  ? "Quản trị trường"
+                  ? "Ban giám hiệu"
                   : "Lớp đang phụ trách"}
             </small>
             <b>
@@ -263,7 +305,7 @@ export default function Home() {
               {authUser.role === "superadmin"
                 ? "Quản trị tối cao"
                 : authUser.role === "admin"
-                  ? "Quản trị trường"
+                  ? STAFF_POSITION_LABELS[position]
                   : role === "teacher"
                     ? "Giáo viên"
                     : "Phụ huynh"}
@@ -342,28 +384,61 @@ export default function Home() {
             authUser.role === "superadmin" ? (
               <SuperAdmin active={active} setActive={setActive} ping={ping} />
             ) : (
-              <Admin active={active} setActive={setActive} ping={ping} />
+              <Admin user={authUser} active={active} setActive={setActive} ping={ping} />
             )
           ) : role === "teacher" ? (
-            <TeacherArea active={active} ping={ping} />
+            <TeacherArea active={active} setActive={setActive} ping={ping} />
           ) : (
-            <Parent active={active} ping={ping} />
+            <Parent active={active} setActive={setActive} ping={ping} />
           )}
         </div>
         <div className="mobile-nav">
-          {navItems.map(([i, n]) => (
+          {mobilePrimary.map(([i, n]) => (
             <button
               className={active === n ? "on" : ""}
               key={n}
-              onClick={() => setActive(n)}
+              onClick={() => { setActive(n); setMobileMenuOpen(false); }}
             >
               <i>
                 <ChibiIcon icon={i} />
               </i>
-              {n.split(" ")[0]}
+              <span>{n}</span>
             </button>
           ))}
+          <button
+            className={mobileMore.some(([, name]) => name === active) || mobileMenuOpen ? "on" : ""}
+            onClick={() => setMobileMenuOpen((value) => !value)}
+            aria-expanded={mobileMenuOpen}
+          >
+            <i className="mobile-more-icon">•••</i>
+            <span>Thêm</span>
+          </button>
         </div>
+        {mobileMenuOpen && (
+          <div className="mobile-menu-backdrop" onClick={() => setMobileMenuOpen(false)}>
+            <section className="mobile-menu-sheet" onClick={(event) => event.stopPropagation()}>
+              <div className="mobile-menu-head">
+                <div><b>Chức năng</b><small>{authUser.schoolName}</small></div>
+                <button aria-label="Đóng menu" onClick={() => setMobileMenuOpen(false)}>×</button>
+              </div>
+              <div className="mobile-menu-grid">
+                {mobileMore.map(([i, n]) => (
+                  <button key={n} className={active === n ? "on" : ""} onClick={() => { setActive(n); setMobileMenuOpen(false); }}>
+                    <i><ChibiIcon icon={i} /></i><span>{n}</span>
+                    {alerts.items.some((a) => a.target === n) && <em>{alerts.items.find((a) => a.target === n)!.count}</em>}
+                  </button>
+                ))}
+              </div>
+              <div className="mobile-account-actions">
+                <button onClick={() => { setProfileOpen(true); setMobileMenuOpen(false); }}>Chỉnh hồ sơ</button>
+                <button className="danger" onClick={async () => {
+                  await fetch("/api/auth", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "logout" }) });
+                  setAuthUser(null); setSchoolBrand(null); setAlerts({ total: 0, items: [] }); setAlertsOpen(false); setMobileMenuOpen(false);
+                }}>Đăng xuất</button>
+              </div>
+            </section>
+          </div>
+        )}
       </section>
       {profileOpen && (
         <ProfileModal
@@ -394,6 +469,7 @@ type AuthUser = {
   username: string;
   fullName: string;
   role: "superadmin" | "admin" | "teacher" | "parent";
+  position?: string;
   status: string;
   phone?: string;
   address?: string;
@@ -441,12 +517,12 @@ function AuthScreen({ onLogin }: { onLogin: (u: AuthUser) => void }) {
     <main className="auth-page">
       <section className="auth-art">
         <div className="auth-brand">
-          <img src="/mam-non-yeu-thuong-logo.png" alt="Mầm Non Yêu Thương" />
+          <img src="/pwa/brand-logo.png" alt="Mầm Non Yêu Thương" />
         </div>
         <div className="auth-scene">
           <img
-            src="/truong-mam-non.png"
-            alt="Khung cảnh trường mầm non thân thiện"
+            src="/pwa/ket-noi-yeu-thuong-v1.webp"
+            alt="Khung cảnh Mầm Non Yêu Thương với trẻ vui học và vui chơi"
           />
         </div>
         <h1>
@@ -461,7 +537,7 @@ function AuthScreen({ onLogin }: { onLogin: (u: AuthUser) => void }) {
       </section>
       <section className="auth-form">
         <div className="mobile-auth-brand">
-          <img src="/mam-non-yeu-thuong-logo.png" alt="Mầm Non Yêu Thương" />
+          <img src="/pwa/brand-logo.png" alt="Mầm Non Yêu Thương" />
         </div>
         <div className="auth-card">
           <h2>Chào mừng trở lại!</h2>
@@ -675,20 +751,29 @@ function ProfileModal({
 
 function TeacherArea({
   active,
+  setActive,
   ping,
 }: {
   active: string;
+  setActive: (s: string) => void;
   ping: (s: string) => void;
 }) {
   if (active === "Hồ sơ trẻ") return <ChildrenManager ping={ping} />;
+  if (active === "Biểu mẫu lớp") return <TeacherFormsHub setActive={setActive} />;
   if (active === "Điểm danh") return <Attendance ping={ping} />;
-  if (active === "Sổ chăm sóc") return <CareArea ping={ping} />;
+  if (active === "Sổ chăm sóc") return <CareArea ping={ping} initialTab="daily" />;
+  if (active === "Sự cố y tế") return <CareArea ping={ping} initialTab="incident" />;
+  if (active === "Cân đo") return <CareArea ping={ping} initialTab="health" />;
+  if (active === "Đánh giá") return <CareArea ping={ping} initialTab="assess" />;
   if (active === "Nhật ký") return <Journal ping={ping} />;
   if (active === "Tin nhắn") return <Messages ping={ping} />;
   if (active === "Phụ huynh")
     return <AccountManager ping={ping} back={() => {}} />;
   if (active === "Thông báo") return <Notices ping={ping} />;
-  return <Teacher ping={ping} />;
+  if (active === "Phối hợp phụ huynh")
+    return <CoordinationHub audience="teacher" setActive={setActive} />;
+  if (active === "Báo cáo lớp") return <ReportBoard teacherView />;
+  return <Teacher ping={ping} setActive={setActive} />;
 }
 
 function PageHead({
@@ -1063,22 +1148,35 @@ function SystemSchoolTable({ rows }: { rows: SchoolSummary[] }) {
 }
 
 function Admin({
+  user,
   active,
   setActive,
   ping,
 }: {
+  user: AuthUser;
   active: string;
   setActive: (s: string) => void;
   ping: (s: string) => void;
 }) {
-  if (active === "Tài khoản")
+  const position = staffPosition(user);
+  const allowed =
+    position === "boarding_vp"
+      ? new Set(["Tổng quan", "Bán trú", "Báo cáo", "Điểm danh", "Thực đơn", "Hồ sơ trẻ", "Phối hợp phụ huynh", "Thông báo", "Tin nhắn"])
+      : position === "accountant"
+        ? new Set(["Tổng quan", "Bán trú", "Báo cáo", "Học phí", "Thực đơn", "Thông báo", "Tin nhắn"])
+        : null;
+  const view = allowed && !allowed.has(active) ? "Tổng quan" : active;
+  if (view === "Tài khoản")
     return <AccountManager ping={ping} back={() => setActive("Tổng quan")} />;
-  if (active === "Thiết lập") return <SchoolSetup ping={ping} />;
-  if (active === "Hồ sơ trẻ") return <ChildrenManager ping={ping} />;
-  if (active === "Điểm danh") return <Attendance ping={ping} />;
-  if (active === "Tin nhắn") return <Messages ping={ping} />;
-  if (active === "Thông báo") return <Notices ping={ping} />;
-  if (active === "Thực đơn")
+  if (view === "Thiết lập") return <SchoolSetup ping={ping} />;
+  if (view === "Hồ sơ trẻ") return <ChildrenManager ping={ping} />;
+  if (view === "Điểm danh") return <Attendance ping={ping} />;
+  if (view === "Tin nhắn") return <Messages ping={ping} />;
+  if (view === "Thông báo") return <Notices ping={ping} />;
+  if (view === "Phối hợp phụ huynh")
+    return <CoordinationHub audience="leadership" setActive={setActive} />;
+  if (view === "Bán trú") return <BoardingArea ping={ping} />;
+  if (view === "Thực đơn")
     return (
       <>
         <PageHead
@@ -1089,15 +1187,17 @@ function Admin({
         <MenuBoard ping={ping} editable />
       </>
     );
-  if (active === "Học phí") return <FeeManager ping={ping} />;
-  if (active === "Báo cáo") return <ReportBoard />;
-  return <SchoolAdminDashboard setActive={setActive} />;
+  if (view === "Học phí") return <FeeManager ping={ping} />;
+  if (view === "Báo cáo") return <ReportBoard />;
+  return <SchoolAdminDashboard setActive={setActive} position={position} />;
 }
 
 function SchoolAdminDashboard({
   setActive,
+  position,
 }: {
   setActive: (s: string) => void;
+  position: StaffPosition;
 }) {
   const [children, setChildren] = useState<Child[]>([]),
     [users, setUsers] = useState<ManagedUser[]>([]);
@@ -1112,6 +1212,18 @@ function SchoolAdminDashboard({
   const teachers = users.filter((x) => x.role === "teacher"),
     parents = users.filter((x) => x.role === "parent"),
     classes = new Map<string, number>();
+  const title =
+    position === "boarding_vp"
+      ? "Điều hành công tác bán trú"
+      : position === "accountant"
+        ? "Bảng điều hành kế toán"
+        : "Tổng quan nhà trường";
+  const subtitle =
+    position === "boarding_vp"
+      ? "Theo dõi ăn, ngủ, sức khỏe và phối hợp với các lớp"
+      : position === "accountant"
+        ? "Theo dõi khoản thu và số liệu phục vụ công tác bán trú"
+        : "Cái nhìn tổng hợp các mảng hoạt động trong phạm vi trường";
   children.forEach((x) =>
     classes.set(
       x.className || "Chưa xếp lớp",
@@ -1122,9 +1234,25 @@ function SchoolAdminDashboard({
     <>
       <PageHead
         icon="🏫"
-        title="Điều hành nhà trường"
-        sub="Dữ liệu thực tế trong phạm vi trường"
+        title={title}
+        sub={subtitle}
       />
+      <div className="role-focus">
+        <div>
+          <small>KHÔNG GIAN LÀM VIỆC</small>
+          <b>{STAFF_POSITION_LABELS[position]}</b>
+          <span>
+            {position === "boarding_vp"
+              ? "Ưu tiên theo dõi bán trú, sức khỏe và xử lý phối hợp với phụ huynh."
+              : position === "accountant"
+                ? "Ưu tiên khoản thu, thực đơn và báo cáo số liệu bán trú."
+                : "Nắm nhanh tình hình toàn trường và các nội dung cần chỉ đạo."}
+          </span>
+        </div>
+        <button onClick={() => setActive(position === "accountant" ? "Học phí" : position === "boarding_vp" ? "Bán trú" : "Báo cáo")}>
+          Mở công việc ưu tiên
+        </button>
+      </div>
       <section className="stats">
         <article>
           <i className="pink">
@@ -1172,6 +1300,30 @@ function SchoolAdminDashboard({
           </div>
         </article>
       </section>
+      {(position === "principal" || position === "school_admin") && (
+        <section className="leadership-overview panel">
+          <div className="leadership-overview-head">
+            <div>
+              <b>Bức tranh tổng quan</b>
+              <small>Các mảng cần theo dõi trong một màn hình</small>
+            </div>
+            <button onClick={() => setActive("Báo cáo")}>Xem báo cáo chi tiết</button>
+          </div>
+          {[
+            ["Tài khoản giáo viên đang hoạt động", teachers.filter((x) => x.status === "active").length, teachers.length],
+            ["Phụ huynh đã kết nối", parents.filter((x) => x.status === "active").length, Math.max(children.length, parents.length)],
+            ["Trẻ đã có lớp", children.filter((x) => x.className && x.className !== "Chưa xếp lớp").length, children.length],
+          ].map(([label, value, total]) => {
+            const percent = Number(total) ? Math.min(100, Math.round((Number(value) / Number(total)) * 100)) : 0;
+            return (
+              <div className="overview-row" key={String(label)}>
+                <div><b>{label}</b><span>{value}/{total}</span></div>
+                <div className="overview-track"><i style={{ width: `${percent}%` }} /></div>
+              </div>
+            );
+          })}
+        </section>
+      )}
       <section className="admin-grid">
         <div className="panel">
           <Title
@@ -1179,20 +1331,20 @@ function SchoolAdminDashboard({
             sub="Các chức năng đúng phạm vi nhà trường"
           />
           <div className="module-grid">
-            <button onClick={() => setActive("Tài khoản")}>
+            {(position === "principal" || position === "school_admin") && <button onClick={() => setActive("Tài khoản")}>
               <i>
                 <ChibiIcon icon="👩🏻‍🏫" />
               </i>
               <b>Tài khoản giáo viên</b>
               <small>Tạo, khóa và quản lý giáo viên</small>
-            </button>
-            <button onClick={() => setActive("Thiết lập")}>
+            </button>}
+            {(position === "principal" || position === "school_admin") && <button onClick={() => setActive("Thiết lập")}>
               <i>
                 <ChibiIcon icon="🏫" />
               </i>
               <b>Điểm trường và lớp</b>
               <small>Tạo lớp, phân hiệu và phân công chủ nhiệm</small>
-            </button>
+            </button>}
             <button onClick={() => setActive("Thông báo")}>
               <i>
                 <ChibiIcon icon="📣" />
@@ -1200,13 +1352,13 @@ function SchoolAdminDashboard({
               <b>Thông báo</b>
               <small>Gửi thông tin trong hệ thống</small>
             </button>
-            <button onClick={() => setActive("Hồ sơ trẻ")}>
+            {position !== "accountant" && <button onClick={() => setActive("Hồ sơ trẻ")}>
               <i>
                 <ChibiIcon icon="🧒" />
               </i>
               <b>Hồ sơ trẻ</b>
               <small>Thêm, sửa và nhập Excel toàn trường</small>
-            </button>
+            </button>}
             <button onClick={() => setActive("Học phí")}>
               <i>
                 <ChibiIcon icon="💰" />
@@ -1214,6 +1366,18 @@ function SchoolAdminDashboard({
               <b>Học phí</b>
               <small>Biểu phí, phát hành và thu phiếu</small>
             </button>
+            <button onClick={() => setActive("Bán trú")}>
+              <i>
+                <ChibiIcon icon="🍱" />
+              </i>
+              <b>Điều hành bán trú</b>
+              <small>Ăn, ngủ, sức khỏe và báo cáo theo lớp</small>
+            </button>
+            {position !== "accountant" && <button onClick={() => setActive("Phối hợp phụ huynh")}>
+              <i><ChibiIcon icon="👨‍👩‍👧" /></i>
+              <b>Phối hợp phụ huynh</b>
+              <small>Tin nhắn, thông báo và phản hồi của gia đình</small>
+            </button>}
             <button onClick={() => setActive("Báo cáo")}>
               <i>
                 <ChibiIcon icon="📊" />
@@ -1247,6 +1411,7 @@ type ManagedUser = {
   fullName: string;
   phone?: string;
   role: string;
+  position?: string;
   status: string;
   schoolId?: number | null;
   schoolName: string;
@@ -1440,12 +1605,19 @@ function SchoolSetup({ ping }: { ping: (s: string) => void }) {
     [error, setError] = useState(""),
     [studioTab, setStudioTab] = useState<"templates" | "manual" | "ai">("templates"),
     [designType, setDesignType] = useState<"logo" | "banner">("logo"),
-    [designTitle, setDesignTitle] = useState("Mầm Non Yêu Thương"),
+    [designTitle, setDesignTitle] = useState(""),
     [designSubtitle, setDesignSubtitle] = useState("Mỗi ngày đến trường là một ngày vui"),
     [designIcon, setDesignIcon] = useState("🌱"),
+    [designIconImage, setDesignIconImage] = useState(""),
     [designBg, setDesignBg] = useState("#fff6e8"),
     [designAccent, setDesignAccent] = useState("#f58278"),
+    [designLayout, setDesignLayout] = useState<"badge" | "garden" | "minimal">("badge"),
+    [designFont, setDesignFont] = useState<"rounded" | "classic" | "modern">("rounded"),
     [aiPrompt, setAiPrompt] = useState("");
+  const applyBrandLocally = (next: SchoolInfo) => {
+    setSchool(next);
+    window.dispatchEvent(new CustomEvent("school-brand-updated", { detail: next }));
+  };
   const load = () =>
     Promise.all([
       fetch("/api/schools").then((r) => r.json()),
@@ -1476,7 +1648,7 @@ function SchoolSetup({ ping }: { ping: (s: string) => void }) {
       ping(d.error);
       return;
     }
-    setSchool(d.school);
+    applyBrandLocally(d.school);
     ping("Đã lưu thông tin trường");
   }
   function openStructure(type: "campus" | "class", item: Campus | ClassRow | null = null) {
@@ -1534,7 +1706,7 @@ function SchoolSetup({ ping }: { ping: (s: string) => void }) {
       ping(d.error);
       return;
     }
-    setSchool(d.school);
+    applyBrandLocally(d.school);
     ping(type === "logo" ? "Đã thay logo mới" : "Đã thay banner mới");
   }
   async function uploadBrandBlob(blob: Blob, type: "logo" | "banner") {
@@ -1546,22 +1718,58 @@ function SchoolSetup({ ping }: { ping: (s: string) => void }) {
     const d = await r.json();
     setUploading("");
     if (!r.ok) return ping(d.error || "Chưa lưu được hình ảnh");
-    setSchool(d.school);
+    applyBrandLocally(d.school);
     ping(type === "logo" ? "Đã áp dụng logo" : "Đã áp dụng banner");
   }
-  function makeDesign(preset?: { bg: string; accent: string; icon: string }) {
+  function uploadDesignIcon(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/")) return ping("Vui lòng chọn tệp hình ảnh");
+    if (file.size > 5 * 1024 * 1024) return ping("Biểu tượng không được lớn hơn 5 MB");
+    const reader = new FileReader();
+    reader.onload = () => {
+      setDesignIconImage(String(reader.result || ""));
+      ping("Đã thêm biểu tượng riêng vào bản thiết kế");
+    };
+    reader.onerror = () => ping("Không đọc được tệp hình ảnh");
+    reader.readAsDataURL(file);
+  }
+  async function makeDesign(preset?: { bg: string; accent: string; secondary: string; icon: string; layout: "badge" | "garden" | "minimal" }) {
     const type = designType, canvas = document.createElement("canvas");
     canvas.width = type === "logo" ? 700 : 1600; canvas.height = 400;
     const c = canvas.getContext("2d"); if (!c) return;
-    const bg = preset?.bg || designBg, accent = preset?.accent || designAccent, icon = preset?.icon || designIcon;
-    const g = c.createLinearGradient(0, 0, canvas.width, canvas.height); g.addColorStop(0, bg); g.addColorStop(1, "#ffffff");
+    const bg = preset?.bg || designBg, accent = preset?.accent || designAccent, secondary = preset?.secondary || "#4f9f91", icon = preset?.icon || designIcon, layout = preset?.layout || designLayout;
+    const g = c.createLinearGradient(0, 0, canvas.width, canvas.height); g.addColorStop(0, bg); g.addColorStop(.58, "#ffffff"); g.addColorStop(1, `${secondary}22`);
     c.fillStyle = g; c.fillRect(0, 0, canvas.width, canvas.height);
-    c.fillStyle = accent; c.globalAlpha = .18; c.beginPath(); c.arc(canvas.width * .83, 40, 250, 0, Math.PI * 2); c.fill(); c.globalAlpha = 1;
-    c.textAlign = type === "logo" ? "center" : "left"; c.textBaseline = "middle";
-    const x = type === "logo" ? canvas.width / 2 : 120;
-    c.font = type === "logo" ? "86px sans-serif" : "100px sans-serif"; c.fillText(icon, x, 105);
-    c.fillStyle = accent; c.font = `700 ${type === "logo" ? 48 : 62}px Arial`; c.fillText(designTitle || school.name, x, 225);
-    c.fillStyle = "#526a66"; c.font = `500 ${type === "logo" ? 24 : 31}px Arial`; c.fillText(designSubtitle, x, 295);
+    c.globalAlpha = .12; c.fillStyle = secondary;
+    for (let i = 0; i < 9; i++) { c.beginPath(); c.arc(canvas.width * (.06 + i * .13), 35 + (i % 2) * 310, 32 + (i % 3) * 12, 0, Math.PI * 2); c.fill(); }
+    c.globalAlpha = 1; c.textBaseline = "middle";
+    const center = type === "logo", x = center ? canvas.width / 2 : 150;
+    const customIcon = preset ? "" : designIconImage;
+    if (layout === "badge") {
+      c.fillStyle = "#ffffffdd"; c.strokeStyle = `${accent}55`; c.lineWidth = 5; c.beginPath(); c.arc(x, center ? 112 : 200, center ? 78 : 92, 0, Math.PI * 2); c.fill(); c.stroke();
+    } else if (layout === "garden") {
+      c.fillStyle = `${secondary}28`; c.beginPath(); c.ellipse(x, center ? 112 : 200, center ? 118 : 132, center ? 72 : 98, 0, 0, Math.PI * 2); c.fill();
+    }
+    const iconY = center ? 110 : 195;
+    if (customIcon) {
+      const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const img = new Image(); img.onload = () => resolve(img); img.onerror = reject; img.src = customIcon;
+      }).catch(() => null);
+      if (image) {
+        const box = center ? 126 : 148, scale = Math.min(box / image.naturalWidth, box / image.naturalHeight);
+        const w = image.naturalWidth * scale, h = image.naturalHeight * scale;
+        c.save(); c.beginPath(); c.arc(x, iconY, box / 2, 0, Math.PI * 2); c.clip(); c.drawImage(image, x - w / 2, iconY - h / 2, w, h); c.restore();
+      }
+    } else {
+      c.textAlign = "center"; c.font = center ? "82px sans-serif" : "98px sans-serif"; c.fillText(icon, x, iconY);
+    }
+    const titleX = center ? x : 300, align = center ? "center" : "left";
+    const fontFamily = designFont === "classic" ? "Georgia" : designFont === "modern" ? "Arial" : "Trebuchet MS";
+    c.textAlign = align; c.fillStyle = accent; c.font = `800 ${center ? 46 : 64}px ${fontFamily}`; c.fillText(designTitle || school.name, titleX, center ? 235 : 164);
+    c.fillStyle = "#405f59"; c.font = `600 ${center ? 23 : 31}px ${fontFamily}`; c.fillText(designSubtitle, titleX, center ? 294 : 235);
+    if (!center) { c.fillStyle = accent; c.fillRect(titleX, 274, 120, 6); c.fillStyle = "#58716c"; c.font = `500 22px Arial`; c.fillText("NUÔI DƯỠNG TÌNH YÊU · KHƠI MỞ TIỀM NĂNG", titleX, 320); }
     canvas.toBlob((blob) => blob && uploadBrandBlob(blob, type), "image/png");
   }
   async function createWithAi() {
@@ -1569,9 +1777,12 @@ function SchoolSetup({ ping }: { ping: (s: string) => void }) {
     const r = await fetch("/api/branding-ai", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ type: designType, prompt: aiPrompt }) });
     const d = await r.json(); setUploading("");
     if (!r.ok) return ping(d.error || "Chưa tạo được hình ảnh AI");
-    setSchool(d.school); ping("Đã tạo và áp dụng hình ảnh AI");
+    applyBrandLocally(d.school); ping("Đã tạo và áp dụng hình ảnh AI");
   }
   async function pickTheme(theme: string) {
+    const previous = school;
+    const optimistic = { ...school, theme };
+    applyBrandLocally(optimistic);
     const r = await fetch("/api/schools", {
         method: "PATCH",
         headers: { "content-type": "application/json" },
@@ -1579,10 +1790,11 @@ function SchoolSetup({ ping }: { ping: (s: string) => void }) {
       }),
       d = await r.json();
     if (!r.ok) {
+      applyBrandLocally(previous);
       ping(d.error || "Chưa đổi được bộ màu");
       return;
     }
-    setSchool(d.school);
+    applyBrandLocally(d.school);
     ping(`Đã đổi sang bộ màu ${THEMES[theme]?.label || theme}`);
   }
   if (!school) return <div className="empty">Đang tải cấu hình…</div>;
@@ -1690,11 +1902,18 @@ function SchoolSetup({ ping }: { ping: (s: string) => void }) {
         <div className="studio-tabs">{([['templates','Mẫu có sẵn'],['manual','Tự thiết kế'],['ai','Tạo bằng AI']] as const).map(([k,v])=><button key={k} className={studioTab===k?'on':''} onClick={()=>setStudioTab(k)}>{v}</button>)}</div>
         <div className="studio-target"><button className={designType==='logo'?'on':''} onClick={()=>setDesignType('logo')}>Logo</button><button className={designType==='banner'?'on':''} onClick={()=>setDesignType('banner')}>Banner</button></div>
         {studioTab === "templates" && <div className="template-grid">
-          {[{name:'Vườn ươm',icon:'🌱',bg:'#fff6e8',accent:'#ef766c'},{name:'Cầu vồng',icon:'🌈',bg:'#eaf7fb',accent:'#4f9dcb'},{name:'Hoa nhỏ',icon:'🌸',bg:'#fff0f5',accent:'#d9688b'}].map(x=><button key={x.name} style={{background:`linear-gradient(135deg,${x.bg},#fff)`}} onClick={()=>makeDesign(x)}><i>{x.icon}</i><b>{x.name}</b><small>Dùng mẫu này</small></button>)}
+          {[
+            {name:'Mầm xanh tri thức',tag:'THANH LỊCH',icon:'🌱',bg:'#eef8f3',accent:'#337f70',secondary:'#e39a64',layout:'badge' as const},
+            {name:'Cầu vồng sáng tạo',tag:'TƯƠI VUI',icon:'🌈',bg:'#edf7fc',accent:'#347fae',secondary:'#e27a83',layout:'garden' as const},
+            {name:'Vườn hoa yêu thương',tag:'DỊU DÀNG',icon:'🌸',bg:'#fff1f5',accent:'#b85778',secondary:'#7da681',layout:'badge' as const},
+            {name:'Ngôi trường hạnh phúc',tag:'HIỆN ĐẠI',icon:'🏫',bg:'#fff7e9',accent:'#cb743d',secondary:'#4f8c83',layout:'minimal' as const},
+            {name:'Gấu nhỏ thân thiện',tag:'ẤM ÁP',icon:'🧸',bg:'#f8f1e9',accent:'#9c694c',secondary:'#da8c73',layout:'garden' as const},
+            {name:'Mặt trời khám phá',tag:'NĂNG ĐỘNG',icon:'☀️',bg:'#fff8df',accent:'#d48728',secondary:'#4d91ae',layout:'badge' as const}
+          ].map(x=><button key={x.name} className="identity-template" style={{background:`linear-gradient(145deg,${x.bg},#fff)`}} onClick={()=>makeDesign(x)}><em>{x.tag}</em><span className="template-mark" style={{color:x.accent,background:`${x.secondary}22`}}><i>{x.icon}</i></span><b style={{color:x.accent}}>{x.name}</b><small>Áp dụng cho {designType}</small></button>)}
         </div>}
         {studioTab === "manual" && <div className="manual-editor">
-          <div className={`design-preview ${designType}`} style={{background:`linear-gradient(135deg,${designBg},#fff)`,color:designAccent}}><i>{designIcon}</i><b>{designTitle || school.name}</b><small>{designSubtitle}</small></div>
-          <div className="editor-controls"><label>Biểu tượng<select value={designIcon} onChange={e=>setDesignIcon(e.target.value)}>{['🌱','🌈','🌸','☀️','🧸','🏫'].map(x=><option key={x}>{x}</option>)}</select></label><label>Màu nền<input type="color" value={designBg} onChange={e=>setDesignBg(e.target.value)}/></label><label>Màu chính<input type="color" value={designAccent} onChange={e=>setDesignAccent(e.target.value)}/></label><label>Tên hiển thị<input value={designTitle} onChange={e=>setDesignTitle(e.target.value)}/></label><label>Khẩu hiệu<input value={designSubtitle} onChange={e=>setDesignSubtitle(e.target.value)}/></label><button className="save" onClick={()=>makeDesign()} disabled={!!uploading}>Lưu và áp dụng</button></div>
+          <div className={`design-preview ${designType} layout-${designLayout}`} style={{background:`linear-gradient(135deg,${designBg},#fff)`,color:designAccent}}><span className="preview-mark">{designIconImage?<img src={designIconImage} alt="Biểu tượng tự tải lên"/>:<i>{designIcon}</i>}</span><div><b>{designTitle || school.name}</b><small>{designSubtitle}</small></div></div>
+          <div className="editor-controls"><label>Biểu tượng có sẵn<select value={designIcon} onChange={e=>{setDesignIcon(e.target.value);setDesignIconImage("")}}>{['🌱','🌈','🌸','☀️','🧸','🏫','🦋','⭐'].map(x=><option key={x}>{x}</option>)}</select></label><label>Kiểu bố cục<select value={designLayout} onChange={e=>setDesignLayout(e.target.value as typeof designLayout)}><option value="badge">Huy hiệu</option><option value="garden">Khu vườn</option><option value="minimal">Tối giản</option></select></label><div className="custom-icon-upload"><b>Biểu tượng riêng</b><label className="excel-btn">{designIconImage?'Thay ảnh khác':'Tải ảnh lên'}<input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={uploadDesignIcon}/></label>{designIconImage&&<button type="button" className="remove-icon" onClick={()=>setDesignIconImage("")}>Dùng lại biểu tượng có sẵn</button>}<small>PNG nền trong suốt cho kết quả đẹp nhất · tối đa 5 MB</small></div><label>Kiểu chữ<select value={designFont} onChange={e=>setDesignFont(e.target.value as typeof designFont)}><option value="rounded">Tròn thân thiện</option><option value="classic">Thanh lịch</option><option value="modern">Hiện đại</option></select></label><label>Màu nền<input type="color" value={designBg} onChange={e=>setDesignBg(e.target.value)}/></label><label>Màu nhận diện<input type="color" value={designAccent} onChange={e=>setDesignAccent(e.target.value)}/></label><label>Tên hiển thị<input value={designTitle} placeholder={school.name} onChange={e=>setDesignTitle(e.target.value)}/></label><label>Khẩu hiệu<input value={designSubtitle} onChange={e=>setDesignSubtitle(e.target.value)}/></label><button className="save" onClick={()=>makeDesign()} disabled={!!uploading}>{uploading?'Đang lưu…':'Lưu và áp dụng ngay'}</button></div>
         </div>}
         {studioTab === "ai" && <div className="ai-maker"><p>Mô tả phong cách, màu sắc và hình ảnh mong muốn. AI tạo ảnh thật rồi lưu vào trường.</p><textarea value={aiPrompt} onChange={e=>setAiPrompt(e.target.value)} placeholder="Ví dụ: Logo chibi hình mầm cây trong vòng tay, màu san hô và xanh lá, nền sáng…"/><button className="save" onClick={createWithAi} disabled={!aiPrompt.trim() || !!uploading}>{uploading.startsWith('ai-')?'Đang tạo…':'Tạo và áp dụng bằng AI'}</button></div>}
         </div>
@@ -1716,8 +1935,9 @@ function SchoolSetup({ ping }: { ping: (s: string) => void }) {
                 <i style={{ background: t.secondary }} />
                 <i style={{ background: t.navBg }} />
               </span>
-              <b>{t.label}</b>
-              {(school.theme || "mint") === key && <em>Đang dùng</em>}
+              <span className="theme-demo" style={{background:`linear-gradient(135deg,${t.heroFrom},${t.heroTo})`}}><i style={{background:t.accent}}/><span><b style={{color:t.navText}}>Tiêu đề</b><small>Thẻ nội dung mẫu</small></span></span>
+              <b>{t.label}</b><small>{t.description}</small>
+              {(school.theme || "mint") === key && <em>✓ Đang dùng</em>}
             </button>
           ))}
         </div>
@@ -2070,7 +2290,11 @@ function AccountManager({
                 <td>{u.schoolName}</td>
                 <td>
                   {u.role === "admin"
-                    ? "Quản trị trường"
+                    ? STAFF_POSITION_LABELS[
+                        (u.position && u.position in STAFF_POSITION_LABELS
+                          ? u.position
+                          : "principal") as StaffPosition
+                      ]
                     : u.role === "teacher"
                       ? "Giáo viên"
                       : "Phụ huynh"}
@@ -2124,19 +2348,30 @@ function AccountManager({
               <input name="fullName" required />
             </label>
             {actor?.role === "superadmin" && (
-              <label>
-                Trường
-                <select name="schoolId" required>
-                  <option value="">Chọn trường</option>
-                  {schools
-                    .filter((s) => s.status === "active")
-                    .map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name} · {s.code}
-                      </option>
-                    ))}
-                </select>
-              </label>
+              <>
+                <label>
+                  Trường
+                  <select name="schoolId" required>
+                    <option value="">Chọn trường</option>
+                    {schools
+                      .filter((s) => s.status === "active")
+                      .map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name} · {s.code}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+                <label>
+                  Chức vụ và không gian làm việc
+                  <select name="position" defaultValue="principal" required>
+                    <option value="principal">Hiệu trưởng</option>
+                    <option value="boarding_vp">Phó hiệu trưởng phụ trách bán trú</option>
+                    <option value="accountant">Kế toán</option>
+                    <option value="school_admin">Quản trị nhà trường</option>
+                  </select>
+                </label>
+              </>
             )}
             {actor?.role === "teacher" && (
               <>
@@ -2180,6 +2415,17 @@ function AccountManager({
             <h2>Sửa tài khoản {label}</h2>
             <label>Họ và tên<input name="fullName" defaultValue={editingUser.fullName} required /></label>
             <label>Tên đăng nhập<input name="username" defaultValue={editingUser.username} minLength={4} required /></label>
+            {actor?.role === "superadmin" && editingUser.role === "admin" && (
+              <label>
+                Chức vụ và không gian làm việc
+                <select name="position" defaultValue={editingUser.position || "principal"}>
+                  <option value="principal">Hiệu trưởng</option>
+                  <option value="boarding_vp">Phó hiệu trưởng phụ trách bán trú</option>
+                  <option value="accountant">Kế toán</option>
+                  <option value="school_admin">Quản trị nhà trường</option>
+                </select>
+              </label>
+            )}
             <label>Mật khẩu mới <small>(để trống nếu giữ nguyên)</small><input name="password" type="password" minLength={8} /></label>
             {error && <div className="auth-error">⚠ {error}</div>}
             <button className="save">Lưu thay đổi</button>
@@ -2407,6 +2653,12 @@ type Child = {
   className: string;
   classId?: number | null;
   birthDate: string;
+  enrollmentNumber?: string;
+  spc?: string;
+  gender?: string;
+  addressHamlet?: string;
+  addressCommune?: string;
+  addressProvince?: string;
   guardian: string;
   phone: string;
   allergy: string;
@@ -2415,13 +2667,36 @@ type Child = {
   fatherName?: string;
   fatherBirthDate?: string;
   fatherJob?: string;
+  fatherWorkplace?: string;
   fatherPhone?: string;
   motherName?: string;
   motherBirthDate?: string;
   motherJob?: string;
+  motherWorkplace?: string;
   motherPhone?: string;
   zaloPhone?: string;
 };
+
+function excelDate(value: unknown) {
+  if (typeof value === "number") {
+    const d = XLSX.SSF.parse_date_code(value);
+    return d ? `${d.y}-${String(d.m).padStart(2, "0")}-${String(d.d).padStart(2, "0")}` : "";
+  }
+  const match = String(value || "").trim().match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+  return match ? `${match[3]}-${match[2].padStart(2, "0")}-${match[1].padStart(2, "0")}` : String(value || "").trim();
+}
+
+function put(sheet: XLSX.WorkSheet, address: string, value: string | number) {
+  const previous = sheet[address] || {};
+  sheet[address] = { ...previous, t: typeof value === "number" ? "n" : "s", v: value };
+}
+
+async function attendanceTemplate() {
+  const response = await fetch("/templates/so-theo-doi-tre-mam-non.xls");
+  if (!response.ok) throw new Error("Không tải được mẫu sổ chuẩn");
+  return XLSX.read(await response.arrayBuffer(), { type: "array", cellStyles: true });
+}
+
 function ChildrenManager({ ping }: { ping: (s: string) => void }) {
   const [rows, setRows] = useState<Child[]>([]),
     [editing, setEditing] = useState<Child | null | undefined>(undefined),
@@ -2494,9 +2769,9 @@ function ChildrenManager({ ping }: { ping: (s: string) => void }) {
     setImporting(true);
     try {
       const book = XLSX.read(await file.arrayBuffer(), { type: "array" });
+      const syll = book.Sheets.SYLL;
       const raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(
-        book.Sheets[book.SheetNames[0]],
-        { defval: "" },
+        book.Sheets[book.SheetNames[0]], { defval: "" },
       );
       const pick = (row: Record<string, unknown>, names: string[]) => {
         const key = Object.keys(row).find((k) =>
@@ -2504,7 +2779,25 @@ function ChildrenManager({ ping }: { ping: (s: string) => void }) {
         );
         return key ? String(row[key]).trim() : "";
       };
-      const items = raw.map((row) => ({
+      const items = syll
+        ? Array.from({ length: 53 }, (_, index) => index + 6).map((row) => ({
+            enrollmentNumber: String(syll[`B${row}`]?.v || "").trim(),
+            spc: String(syll[`C${row}`]?.v || "").trim(),
+            name: String(syll[`D${row}`]?.v || "").trim(),
+            birthDate: excelDate(syll[`E${row}`]?.v),
+            gender: syll[`F${row}`]?.v ? "Nữ" : "Nam",
+            addressHamlet: String(syll[`G${row}`]?.v || "").trim(),
+            addressCommune: String(syll[`H${row}`]?.v || "").trim(),
+            addressProvince: String(syll[`I${row}`]?.v || "").trim(),
+            fatherName: String(syll[`J${row}`]?.v || "").trim(),
+            fatherJob: String(syll[`K${row}`]?.v || "").trim(),
+            fatherWorkplace: String(syll[`L${row}`]?.v || "").trim(),
+            motherName: String(syll[`M${row}`]?.v || "").trim(),
+            motherJob: String(syll[`N${row}`]?.v || "").trim(),
+            motherWorkplace: String(syll[`O${row}`]?.v || "").trim(),
+            phone: String(syll[`P${row}`]?.v || "").trim(),
+          }))
+        : raw.map((row) => ({
         name: pick(row, ["họ và tên", "họ tên", "tên trẻ", "ho ten"]),
         birthDate: pick(row, ["ngày sinh", "ngay sinh"]),
         className: pick(row, ["lớp", "tên lớp", "lop"]),
@@ -2514,10 +2807,12 @@ function ChildrenManager({ ping }: { ping: (s: string) => void }) {
         fatherName: pick(row, ["họ tên cha", "tên cha"]),
         fatherBirthDate: pick(row, ["ngày sinh cha"]),
         fatherJob: pick(row, ["nghề nghiệp cha"]),
+        fatherWorkplace: pick(row, ["nơi công tác cha"]),
         fatherPhone: pick(row, ["sđt cha", "số điện thoại cha"]),
         motherName: pick(row, ["họ tên mẹ", "tên mẹ"]),
         motherBirthDate: pick(row, ["ngày sinh mẹ"]),
         motherJob: pick(row, ["nghề nghiệp mẹ"]),
+        motherWorkplace: pick(row, ["nơi công tác mẹ"]),
         motherPhone: pick(row, ["sđt mẹ", "số điện thoại mẹ"]),
         zaloPhone: pick(row, ["sđt zalo", "số điện thoại zalo", "zalo"]),
       }));
@@ -2526,15 +2821,15 @@ function ChildrenManager({ ping }: { ping: (s: string) => void }) {
       const r = await fetch("/api/children", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ items, classId: target?.id ?? null }),
+        body: JSON.stringify({ items, classId: target?.id ?? null, updateExisting: Boolean(syll) }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || "Không thể nhập danh sách");
       await load();
       ping(
         target
-          ? `Đã nhập ${d.count} hồ sơ vào lớp ${target.name}`
-          : `Đã nhập thành công ${d.count} hồ sơ trẻ`,
+          ? `Đã cập nhật ${d.updated || 0}, thêm ${d.inserted || 0} hồ sơ vào lớp ${target.name}`
+          : `Đã cập nhật ${d.updated || 0}, thêm ${d.inserted || d.count || 0} hồ sơ trẻ`,
       );
     } catch (x) {
       ping(x instanceof Error ? x.message : "Tệp Excel không hợp lệ");
@@ -2542,33 +2837,25 @@ function ChildrenManager({ ping }: { ping: (s: string) => void }) {
       setImporting(false);
     }
   }
-  function exportExcel() {
-    const data = rows.map((x) => ({
-      "Họ và tên": x.name,
-      "Ngày sinh": x.birthDate,
-      Lớp: x.className,
-      "Phụ huynh": x.guardian,
-      "Số điện thoại": x.phone,
-      "Dị ứng/Lưu ý sức khỏe": x.allergy,
-      "Trạng thái": x.status,
-      "Họ tên cha": x.fatherName,
-      "Ngày sinh cha": x.fatherBirthDate,
-      "Nghề nghiệp cha": x.fatherJob,
-      "SĐT cha": x.fatherPhone,
-      "Họ tên mẹ": x.motherName,
-      "Ngày sinh mẹ": x.motherBirthDate,
-      "Nghề nghiệp mẹ": x.motherJob,
-      "SĐT mẹ": x.motherPhone,
-      "SĐT Zalo": x.zaloPhone,
-    }));
-    const book = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(
-      book,
-      XLSX.utils.json_to_sheet(data),
-      "Hồ sơ trẻ",
-    );
-    XLSX.writeFile(book, "danh-sach-tre.xlsx");
-    ping("Đã xuất danh sách trẻ ra Excel");
+  async function exportExcel() {
+    try {
+      const book = await attendanceTemplate(), sheet = book.Sheets.SYLL;
+      for (let row = 6; row <= 58; row++)
+        for (const col of "ABCDEFGHIJKLMNOP") put(sheet, `${col}${row}`, "");
+      rows.slice(0, 53).forEach((x, index) => {
+        const row = index + 6;
+        const values = [index + 1, x.enrollmentNumber || "", x.spc || "", x.name,
+          formatDate(x.birthDate), x.gender === "Nữ" ? "x" : "", x.addressHamlet || "",
+          x.addressCommune || "", x.addressProvince || "", x.fatherName || "",
+          x.fatherJob || "", x.fatherWorkplace || "", x.motherName || "",
+          x.motherJob || "", x.motherWorkplace || "", x.phone || ""];
+        values.forEach((value, col) => put(sheet, `${XLSX.utils.encode_col(col)}${row}`, value));
+      });
+      XLSX.writeFile(book, "so-theo-doi-tre.xlsx", { bookType: "xlsx", cellStyles: true });
+      ping("Đã xuất đúng mẫu sổ với sheet SYLL");
+    } catch (error) {
+      ping(error instanceof Error ? error.message : "Không xuất được sổ");
+    }
   }
   const classes = Array.from(new Set(rows.map((x) => x.className))).filter(
     Boolean,
@@ -2659,7 +2946,7 @@ function ChildrenManager({ ping }: { ping: (s: string) => void }) {
                     </div>
                   </div>
                 </td>
-                <td>{x.birthDate}</td>
+                <td>{formatDate(x.birthDate)}</td>
                 <td>
                   <b>{x.guardian}</b>
                   <small>{x.phone}</small>
@@ -2784,6 +3071,39 @@ function ChildrenManager({ ping }: { ping: (s: string) => void }) {
                 </select>
               </label>
             </div>
+            <h3>Thông tin theo sheet SYLL</h3>
+            <div className="row">
+              <label>
+                Số ĐTG
+                <input name="enrollmentNumber" defaultValue={editing?.enrollmentNumber || ""} />
+              </label>
+              <label>
+                SPC
+                <input name="spc" defaultValue={editing?.spc || ""} />
+              </label>
+              <label>
+                Giới tính
+                <select name="gender" defaultValue={editing?.gender || ""}>
+                  <option value="">Chưa xác định</option>
+                  <option>Nam</option>
+                  <option>Nữ</option>
+                </select>
+              </label>
+            </div>
+            <div className="row">
+              <label>
+                Tổ, ấp
+                <input name="addressHamlet" defaultValue={editing?.addressHamlet || ""} />
+              </label>
+              <label>
+                Xã/phường
+                <input name="addressCommune" defaultValue={editing?.addressCommune || ""} />
+              </label>
+              <label>
+                Tỉnh/thành phố
+                <input name="addressProvince" defaultValue={editing?.addressProvince || ""} />
+              </label>
+            </div>
             <div className="row">
               <label>
                 Phụ huynh
@@ -2843,6 +3163,10 @@ function ChildrenManager({ ping }: { ping: (s: string) => void }) {
                 />
               </label>
             </div>
+            <label>
+              Nơi công tác cha
+              <input name="fatherWorkplace" defaultValue={editing?.fatherWorkplace || ""} />
+            </label>
             <h3>Thông tin mẹ</h3>
             <div className="row">
               <label>
@@ -2877,6 +3201,10 @@ function ChildrenManager({ ping }: { ping: (s: string) => void }) {
                 />
               </label>
             </div>
+            <label>
+              Nơi công tác mẹ
+              <input name="motherWorkplace" defaultValue={editing?.motherWorkplace || ""} />
+            </label>
             <label>
               Số điện thoại dùng Zalo
               <input
@@ -2922,8 +3250,9 @@ type LeaveRow = {
 };
 const ATT_CHOICES = [
   ["Có mặt", "✓ Có mặt", "yes"],
-  ["Vắng có phép", "Có phép", "warn"],
-  ["Vắng không phép", "Không phép", "no"],
+  ["Vắng cả ngày", "N · Cả ngày", "no"],
+  ["Vắng buổi sáng", "S · Buổi sáng", "warn"],
+  ["Vắng buổi chiều", "C · Buổi chiều", "warn"],
 ];
 
 function DayBar({
@@ -3176,9 +3505,9 @@ function Attendance({ ping }: { ping: (s: string) => void }) {
               <div>
                 <b>{x.childName}</b>
                 <small>
-                  {x.fromDate === x.toDate
-                    ? x.fromDate
-                    : `${x.fromDate} → ${x.toDate}`}{" "}
+                 {x.fromDate === x.toDate
+                    ? formatDate(x.fromDate)
+                    : `${formatDate(x.fromDate)} → ${formatDate(x.toDate)}`}{" "}
                   · {x.reason}
                   {x.note ? ` · ${x.note}` : ""}
                 </small>
@@ -3243,53 +3572,57 @@ function Attendance({ ping }: { ping: (s: string) => void }) {
           <button
             className="linkbtn"
             onClick={async () => {
-              const month = date.slice(0, 7);
-              const r = await fetch(`/api/attendance?month=${month}`),
-                d = await r.json();
-              if (!r.ok) {
-                ping(d.error || "Không xuất được bảng chuyên cần");
-                return;
-              }
-              const days = [
-                ...new Set(
-                  (d.marks || []).map((m: { date: string }) => m.date),
-                ),
-              ].sort() as string[];
-              const sheet = XLSX.utils.json_to_sheet(
-                (d.children || []).map(
-                  (c: { childId: number; name: string; className: string }) => {
-                    const row: Record<string, string | number> = {
-                      "Họ tên": c.name,
-                      "Lớp": c.className,
-                    };
-                    let present = 0;
-                    for (const day of days) {
-                      const mark = (d.marks || []).find(
-                        (m: { childId: number; date: string }) =>
-                          m.childId === c.childId && m.date === day,
-                      );
-                      row[day.slice(8)] = mark
-                        ? mark.status === "Có mặt"
-                          ? "x"
-                          : mark.status === "Vắng có phép"
-                            ? "P"
-                            : "K"
-                        : "";
-                      if (mark?.status === "Có mặt") present += 1;
+              try {
+                const month = date.slice(0, 7), params = new URLSearchParams({ month });
+                if (classId) params.set("classId", classId);
+                const r = await fetch(`/api/attendance?${params}`), d = await r.json();
+                if (!r.ok) throw new Error(d.error || "Không xuất được bảng chuyên cần");
+                const book = await attendanceTemplate(), sheet = book.Sheets["từng tháng"];
+                const [year, monthNumber] = month.split("-").map(Number);
+                const daysInMonth = new Date(year, monthNumber, 0).getDate();
+                put(sheet, "AA1", `Tháng: ${String(monthNumber).padStart(2, "0")}/${year}`);
+                for (let day = 1; day <= 31; day++) {
+                  const column = XLSX.utils.encode_col(day + 2);
+                  put(sheet, `${column}2`, day <= daysInMonth ? day : "");
+                  put(sheet, `${column}3`, day <= daysInMonth
+                    ? ["CN", "T2", "T3", "T4", "T5", "T6", "T7"][new Date(year, monthNumber - 1, day).getDay()]
+                    : "");
+                }
+                const children = (d.children || []) as { childId: number; name: string; className: string }[];
+                const marks = (d.marks || []) as { childId: number; date: string; status: string }[];
+                const code = (status: string) => status === "Có mặt" ? "" : status === "Vắng buổi sáng" ? "S" : status === "Vắng buổi chiều" ? "C" : "N";
+                for (let row = 4; row <= 37; row++) {
+                  put(sheet, `A${row}`, ""); put(sheet, `B${row}`, ""); put(sheet, `AI${row}`, "");
+                  for (let day = 1; day <= 31; day++) put(sheet, `${XLSX.utils.encode_col(day + 2)}${row}`, "");
+                }
+                children.slice(0, 34).forEach((child, index) => {
+                  const row = index + 4;
+                  put(sheet, `A${row}`, index + 1); put(sheet, `B${row}`, child.name);
+                  let attended = 0;
+                  for (let day = 1; day <= daysInMonth; day++) {
+                    const iso = `${month}-${String(day).padStart(2, "0")}`;
+                    const mark = marks.find((x) => x.childId === child.childId && x.date === iso);
+                    if (mark) {
+                      put(sheet, `${XLSX.utils.encode_col(day + 2)}${row}`, code(mark.status));
+                      if (mark.status === "Có mặt") attended += 1;
+                      else if (["Vắng buổi sáng", "Vắng buổi chiều"].includes(mark.status)) attended += 0.5;
                     }
-                    row["Ngày ăn"] = present;
-                    return row;
-                  },
-                ),
-              );
-              const book = XLSX.utils.book_new();
-              XLSX.utils.book_append_sheet(book, sheet, month);
-              XLSX.writeFile(book, `diem-danh-${month}.xlsx`);
-              ping(`Đã xuất bảng chuyên cần tháng ${month}`);
+                  }
+                  put(sheet, `AI${row}`, attended);
+                });
+                for (let day = 1; day <= daysInMonth; day++) {
+                  const dayMarks = marks.filter((x) => Number(x.date.slice(8)) === day);
+                  const count = dayMarks.reduce((sum, x) => sum + (x.status === "Có mặt" ? 1 : ["Vắng buổi sáng", "Vắng buổi chiều"].includes(x.status) ? 0.5 : 0), 0);
+                  put(sheet, `${XLSX.utils.encode_col(day + 2)}42`, count || "");
+                }
+                XLSX.writeFile(book, `so-theo-doi-chuyen-can-${month}.xlsx`, { bookType: "xlsx", cellStyles: true });
+                ping(`Đã xuất sổ chuyên cần tháng ${formatMonth(month)} đúng mẫu`);
+              } catch (error) {
+                ping(error instanceof Error ? error.message : "Không xuất được bảng chuyên cần");
+              }
             }}
           >
-            ⇩ Xuất bảng chuyên cần tháng {date.slice(0, 7)} (x = có mặt · P = có
-            phép · K = không phép)
+            ⇩ Xuất sổ chuyên cần tháng {formatMonth(date.slice(0, 7))} (trống = có mặt · N/S/C = nghỉ)
           </button>
         </p>
       )}
@@ -3758,7 +4091,7 @@ function Journal({ ping }: { ping: (s: string) => void }) {
             <header>
               <div>
                 <small>
-                  {x.category} · {x.date} · {x.authorName}
+                  {x.category} · {formatDate(x.date)} · {x.authorName}
                 </small>
                 <h2>{x.title}</h2>
               </div>
@@ -4101,7 +4434,7 @@ function Messages({
                     {m.senderRole === "parent" ? " · phụ huynh" : " · giáo viên"}
                   </small>
                   <p>{m.body}</p>
-                  <time>{m.createdAt}</time>
+                  <time>{formatDateTime(m.createdAt)}</time>
                 </div>
               ))}
               {!list.length && (
@@ -4241,7 +4574,7 @@ function Incidents({ ping }: { ping: (s: string) => void }) {
                 {x.childName} · {x.kind}
               </b>
               <small>
-                {x.date} {x.time} · {x.className} · {x.severity}
+                {formatDate(x.date)} {x.time} · {x.className} · {x.severity}
                 {x.recordedName ? ` · ${x.recordedName}` : ""}
               </small>
               <p>{x.description}</p>
@@ -4488,7 +4821,7 @@ function HealthBoard({ ping }: { ping: (s: string) => void }) {
                   {c.latest?.bmi ? (
                     <span className="bmi">
                       {c.latest.bmi}
-                      <small>{c.latest.date}</small>
+                      <small>{formatDate(c.latest.date)}</small>
                     </span>
                   ) : (
                     <small className="muted-cell">chưa có</small>
@@ -4631,7 +4964,7 @@ function MenuBoard({
           <article key={d.weekday}>
             <header>
               <b>{d.label}</b>
-              <small>{d.date.slice(8)}/{d.date.slice(5, 7)}</small>
+              <small>{formatDate(d.date)}</small>
             </header>
             {(
               [
@@ -4647,11 +4980,11 @@ function MenuBoard({
                 | "snackPhotoKey";
               const photo = d[photoField];
               return (
-                <div className={hits.length ? "meal-warn" : ""} key={field}>
-                  <i>
-                    <ChibiIcon icon={icon} />
-                  </i>
-                  <small>{label}</small>
+                <div className={`menu-meal${hits.length ? " meal-warn" : ""}`} key={field}>
+                  <div className="menu-meal-head">
+                    <i><ChibiIcon icon={icon} /></i>
+                    <b>{label}</b>
+                  </div>
                   {writable ? (
                     <textarea
                       rows={2}
@@ -4676,6 +5009,7 @@ function MenuBoard({
                       aria-label={`Phóng to ảnh ${label.toLowerCase()}`}
                     >
                       <img src={mediaUrl(photo)} alt={`${label} ${d.label}`} loading="lazy" />
+                      <span className="dish-photo-hint" aria-hidden="true">Xem ảnh lớn ↗</span>
                     </button>
                   )}
                   {writable && (
@@ -4767,8 +5101,8 @@ const CARE_TABS = [
   ["menu", "🍲 Thực đơn"],
 ];
 
-function CareArea({ ping }: { ping: (s: string) => void }) {
-  const [tab, setTab] = useState("daily");
+function CareArea({ ping, initialTab = "daily" }: { ping: (s: string) => void; initialTab?: string }) {
+  const [tab, setTab] = useState(initialTab);
   return (
     <>
       <PageHead
@@ -4829,7 +5163,7 @@ function ParentJournal() {
             <header>
               <div>
                 <small>
-                  {x.category} · {x.date} · {x.authorName}
+                  {x.category} · {formatDate(x.date)} · {x.authorName}
                 </small>
                 <h2>{x.title}</h2>
               </div>
@@ -4910,7 +5244,7 @@ function GrowthChart({
       </svg>
       <div className="chart-legend">
         <span>
-          {values[0]} {unit} · {data[0].date}
+          {values[0]} {unit} · {formatDate(data[0].date)}
         </span>
         <b>
           {values[values.length - 1]} {unit}
@@ -5026,7 +5360,7 @@ function ParentHealth() {
               <tbody>
                 {[...child.history].reverse().map((h) => (
                   <tr key={h.date}>
-                    <td>{h.date}</td>
+                    <td>{formatDate(h.date)}</td>
                     <td>{h.heightCm ? `${h.heightCm} cm` : "—"}</td>
                     <td>{h.weightKg ? `${h.weightKg} kg` : "—"}</td>
                     <td>{h.bmi ?? "—"}</td>
@@ -5167,7 +5501,7 @@ function Notices({ ping }: { ping: (s: string) => void }) {
               </i>
               <section>
                 <small>
-                  {x.audience} · {x.createdAt} · {x.authorName}
+                  {x.audience} · {formatDateTime(x.createdAt)} · {x.authorName}
                 </small>
                 <h2>{x.title}</h2>
                 <p>{x.content}</p>
@@ -5409,7 +5743,62 @@ function ClassDecor({
   );
 }
 
-function Teacher({ ping }: { ping: (s: string) => void }) {
+type TeacherFormSummary = {
+  name: string;
+  childCount: number;
+  attendanceCompletion: number | null;
+  careCompletion: number | null;
+  posts: number;
+  incidents: number;
+  healthRecords: number;
+  assessments: number;
+};
+
+function TeacherFormsHub({ setActive }: { setActive: (s: string) => void }) {
+  const [rows, setRows] = useState<TeacherFormSummary[]>([]), [loading, setLoading] = useState(true);
+  const month = vnToday().slice(0, 7);
+  useEffect(() => {
+    let live = true;
+    fetch(`/api/reports?month=${month}`)
+      .then((r) => (r.ok ? r.json() : { perClass: [] }))
+      .then((d) => { if (live) { setRows(d.perClass || []); setLoading(false); } })
+      .catch(() => live && setLoading(false));
+    return () => { live = false; };
+  }, [month]);
+  const totalChildren = rows.reduce((sum, x) => sum + x.childCount, 0);
+  const weighted = (key: "attendanceCompletion" | "careCompletion") => {
+    const withData = rows.filter((x) => x[key] !== null && x.childCount);
+    if (!withData.length) return null;
+    const children = withData.reduce((sum, x) => sum + x.childCount, 0);
+    return Math.round(withData.reduce((sum, x) => sum + Number(x[key]) * x.childCount, 0) / children);
+  };
+  const attendance = weighted("attendanceCompletion"), care = weighted("careCompletion");
+  const forms = [
+    { icon: "🙋", title: "Điểm danh", note: attendance === null ? "Chưa có dữ liệu tháng này" : `${attendance}% lượt đã cập nhật`, target: "Điểm danh", tone: "green" },
+    { icon: "🍚", title: "Ăn · ngủ · sức khỏe", note: care === null ? "Chưa có dữ liệu tháng này" : `${care}% lượt đã cập nhật`, target: "Sổ chăm sóc", tone: "yellow" },
+    { icon: "💗", title: "Sự cố y tế", note: `${rows.reduce((s, x) => s + x.incidents, 0)} sự cố trong tháng`, target: "Sự cố y tế", tone: "pink" },
+    { icon: "📊", title: "Cân đo", note: `${rows.reduce((s, x) => s + x.healthRecords, 0)}/${totalChildren} trẻ có lượt cập nhật`, target: "Cân đo", tone: "blue" },
+    { icon: "⭐", title: "Đánh giá trẻ", note: `${rows.reduce((s, x) => s + x.assessments, 0)} phiếu cập nhật trong tháng`, target: "Đánh giá", tone: "purple" },
+    { icon: "✎", title: "Nhật ký lớp", note: `${rows.reduce((s, x) => s + x.posts, 0)} bài đã chia sẻ`, target: "Nhật ký", tone: "mint" },
+  ];
+  return <>
+    <PageHead icon="📊" title="Biểu mẫu lớp" sub={`Cập nhật một lần, Ban giám hiệu tự nhận số liệu tổng hợp tháng ${formatMonth(month)}`} />
+    <section className="form-hub-summary panel">
+      <div><small>TIẾN ĐỘ GVCN</small><b>{loading ? "Đang tải…" : attendance === 100 && care === 100 ? "Đã hoàn thành biểu mẫu hằng ngày" : "Còn biểu mẫu cần cập nhật"}</b><span>Ưu tiên Điểm danh và Sổ chăm sóc mỗi ngày; các biểu mẫu khác cập nhật khi phát sinh hoặc đến kỳ.</span></div>
+      <div className="form-progress-pair"><p><span>Điểm danh</span><b>{attendance === null ? "—" : `${attendance}%`}</b></p><p><span>Sổ chăm sóc</span><b>{care === null ? "—" : `${care}%`}</b></p></div>
+    </section>
+    <section className="form-hub-grid">{forms.map((item) => <button key={item.title} onClick={() => setActive(item.target)}><i className={item.tone}><ChibiIcon icon={item.icon} /></i><div><b>{item.title}</b><small>{item.note}</small></div><span>Mở biểu mẫu</span></button>)}</section>
+    <div className="panel form-flow-note"><b>Dữ liệu được tổng hợp tự động</b><p>GVCN lưu biểu mẫu của lớp → hệ thống ghi nhận theo ngày và theo trẻ → Ban giám hiệu xem báo cáo toàn trường, từng lớp và xuất Excel.</p></div>
+  </>;
+}
+
+function Teacher({
+  ping,
+  setActive,
+}: {
+  ping: (s: string) => void;
+  setActive: (s: string) => void;
+}) {
   const [children, setChildren] = useState<Child[]>([]),
     [parents, setParents] = useState<ManagedUser[]>([]),
     [marks, setMarks] = useState<AttRow[]>([]),
@@ -5536,6 +5925,40 @@ function Teacher({ ping }: { ping: (s: string) => void }) {
             </p>
           </div>
         </article>
+      </section>
+      <section className="teacher-today panel">
+        <div className="teacher-today-head">
+          <div>
+            <b>Việc cần làm hôm nay</b>
+            <small>Chạm một lần để mở đúng công việc của lớp</small>
+          </div>
+          <span>{marked >= children.length && children.length ? "Đã điểm danh đủ" : "Đang thực hiện"}</span>
+        </div>
+        <div className="teacher-actions">
+          <button onClick={() => setActive("Biểu mẫu lớp")}>
+            <i><ChibiIcon icon="📊" /></i><b>Tất cả biểu mẫu</b><small>Xem tiến độ và cập nhật nhanh</small>
+          </button>
+          <button onClick={() => setActive("Điểm danh")}>
+            <i><ChibiIcon icon="🙋" /></i>
+            <b>Điểm danh</b>
+            <small>{marked}/{children.length} trẻ đã ghi</small>
+          </button>
+          <button onClick={() => setActive("Sổ chăm sóc")}>
+            <i><ChibiIcon icon="♥" /></i>
+            <b>Ăn · ngủ · sức khỏe</b>
+            <small>Cập nhật cả lớp nhanh</small>
+          </button>
+          <button onClick={() => setActive("Nhật ký")}>
+            <i><ChibiIcon icon="✎" /></i>
+            <b>Nhật ký lớp</b>
+            <small>Gửi hình ảnh cho phụ huynh</small>
+          </button>
+          <button onClick={() => setActive("Báo cáo lớp")}>
+            <i><ChibiIcon icon="📊" /></i>
+            <b>Báo cáo lớp</b>
+            <small>Xem chuyên cần theo tháng</small>
+          </button>
+        </div>
       </section>
       <div className="panel">
         <Title title="Hồ sơ trẻ gần nhất" sub="Dữ liệu thực tế của trường" />
@@ -5760,7 +6183,7 @@ function ParentToday({ ping }: { ping: (s: string) => void }) {
               <small>LỚP {child.className.toUpperCase()}</small>
               <h2>{child.name}</h2>
               <p>
-                Ngày sinh {child.birthDate || "chưa cập nhật"}
+                Ngày sinh {formatDate(child.birthDate) || "chưa cập nhật"}
                 {child.allergy && child.allergy !== "Không"
                   ? ` · Dị ứng: ${child.allergy}`
                   : ""}
@@ -5774,9 +6197,9 @@ function ParentToday({ ping }: { ping: (s: string) => void }) {
           {child.leave && (
             <p className="daybar-note saved-note">
               Đơn xin nghỉ ngày{" "}
-              {child.leave.fromDate === child.leave.toDate
-                ? child.leave.fromDate
-                : `${child.leave.fromDate} → ${child.leave.toDate}`}{" "}
+             {child.leave.fromDate === child.leave.toDate
+                ? formatDate(child.leave.fromDate)
+                : `${formatDate(child.leave.fromDate)} → ${formatDate(child.leave.toDate)}`}{" "}
               · {child.leave.reason} — {child.leave.status.toLowerCase()}.
             </p>
           )}
@@ -5785,7 +6208,7 @@ function ParentToday({ ping }: { ping: (s: string) => void }) {
             .map((x) => (
               <div className="panel incident-alert" key={x.id}>
                 <b>
-                  ⚠ {x.kind} · {x.date} {x.time}
+                  ⚠ {x.kind} · {formatDate(x.date)} {x.time}
                 </b>
                 <p>{x.description}</p>
                 {x.handling && <p className="handling">Nhà trường đã xử lý: {x.handling}</p>}
@@ -5962,9 +6385,9 @@ function ParentLeave({ ping }: { ping: (s: string) => void }) {
             <div>
               <b>
                 {x.childName} ·{" "}
-                {x.fromDate === x.toDate
-                  ? x.fromDate
-                  : `${x.fromDate} → ${x.toDate}`}
+               {x.fromDate === x.toDate
+                  ? formatDate(x.fromDate)
+                  : `${formatDate(x.fromDate)} → ${formatDate(x.toDate)}`}
               </b>
               <small>
                 {x.reason}
@@ -6033,7 +6456,7 @@ function ParentNotices({ ping }: { ping: (s: string) => void }) {
             </i>
             <section>
               <small>
-                {x.audience} · {x.createdAt} · {x.authorName}
+                {x.audience} · {formatDateTime(x.createdAt)} · {x.authorName}
               </small>
               <h2>{x.title}</h2>
               <p>{x.content}</p>
@@ -6062,11 +6485,84 @@ function ParentNotices({ ping }: { ping: (s: string) => void }) {
   );
 }
 
+function CoordinationHub({
+  audience,
+  setActive,
+}: {
+  audience: "teacher" | "parent" | "leadership";
+  setActive: (s: string) => void;
+}) {
+  const isParent = audience === "parent";
+  const isLeadership = audience === "leadership";
+  const actions = isParent
+    ? [
+        ["💬", "Nhắn với giáo viên", "Trao đổi riêng về tình hình của con", "Tin nhắn"],
+        ["☁️", "Gửi đơn xin nghỉ", "GVCN nhận ngay trên sổ điểm danh", "Xin nghỉ"],
+        ["📣", "Xem thông báo", "Đọc và phản hồi thông tin từ lớp", "Thông báo"],
+        ["👨‍👩‍👧", "Theo dõi hôm nay", "Điểm danh, ăn, ngủ và sức khỏe", "Hôm nay của con"],
+      ]
+    : isLeadership
+      ? [
+          ["💬", "Trao đổi với gia đình", "Theo dõi các cuộc trao đổi cần hỗ trợ", "Tin nhắn"],
+          ["📣", "Thông báo nhà trường", "Gửi thông tin thống nhất đến phụ huynh", "Thông báo"],
+          ["🍱", "Phối hợp bán trú", "Đối chiếu chăm sóc và sức khỏe các lớp", "Bán trú"],
+          ["📊", "Theo dõi báo cáo", "Nắm chuyên cần và sự cố theo lớp", "Báo cáo"],
+        ]
+      : [
+          ["💬", "Tin nhắn phụ huynh", "Trao đổi riêng theo từng gia đình", "Tin nhắn"],
+          ["📣", "Thông báo lớp", "Gửi nội dung chung và theo dõi phản hồi", "Thông báo"],
+          ["👨‍👩‍👧", "Tài khoản phụ huynh", "Liên kết đúng phụ huynh với từng trẻ", "Phụ huynh"],
+          ["✎", "Nhật ký lớp", "Chia sẻ hoạt động và hình ảnh trong ngày", "Nhật ký"],
+        ];
+  return (
+    <>
+      <PageHead
+        icon="👨‍👩‍👧"
+        title={isParent ? "Phối hợp với giáo viên" : "Phối hợp gia đình và nhà trường"}
+        sub={
+          isParent
+            ? "Mọi thông tin của con được trao đổi tập trung, rõ ràng"
+            : "Một nơi để thông báo, trao đổi và theo dõi phản hồi của phụ huynh"
+        }
+      />
+      <section className="coordination-hero">
+        <div>
+          <small>QUY TRÌNH PHỐI HỢP</small>
+          <h2>Thông tin đúng người, xử lý đúng việc</h2>
+          <p>
+            Phụ huynh gửi thông tin → GVCN tiếp nhận → cập nhật tình hình của trẻ
+            → gia đình đọc và xác nhận.
+          </p>
+        </div>
+        <span><ChibiIcon icon="👨‍👩‍👧" /></span>
+      </section>
+      <div className="coordination-grid">
+        {actions.map(([icon, title, sub, target]) => (
+          <button key={title} onClick={() => setActive(target)}>
+            <i><ChibiIcon icon={icon} /></i>
+            <div><b>{title}</b><small>{sub}</small></div>
+          </button>
+        ))}
+      </div>
+      <div className="panel coordination-note">
+        <b>Nguyên tắc sử dụng</b>
+        <p>
+          Nội dung riêng của trẻ trao đổi trong Tin nhắn. Thông tin chung của lớp
+          dùng Thông báo. Tình hình ăn, ngủ, sức khỏe được cập nhật trong sổ hằng
+          ngày để phụ huynh theo dõi thống nhất.
+        </p>
+      </div>
+    </>
+  );
+}
+
 function Parent({
   active,
+  setActive,
   ping,
 }: {
   active: string;
+  setActive: (s: string) => void;
   ping: (s: string) => void;
 }) {
   if (active === "Xin nghỉ") return <ParentLeave ping={ping} />;
@@ -6076,6 +6572,8 @@ function Parent({
   if (active === "Sức khỏe") return <ParentHealth />;
   if (active === "Thực đơn") return <MenuBoard ping={ping} />;
   if (active === "Học phí") return <ParentFees ping={ping} />;
+  if (active === "Phối hợp với cô")
+    return <CoordinationHub audience="parent" setActive={setActive} />;
   return <ParentToday ping={ping} />;
 }
 
@@ -6286,7 +6784,7 @@ function FeeManager({ ping }: { ping: (s: string) => void }) {
           <input type="month" value={month} max={vnToday().slice(0, 7)} onChange={(e) => e.target.value && setMonth(e.target.value)} />
         </label>
         <button className="ghost" onClick={generate} disabled={busy}>
-          {busy ? "Đang phát hành…" : `Phát hành phiếu tháng ${month}`}
+          {busy ? "Đang phát hành…" : `Phát hành phiếu tháng ${formatMonth(month)}`}
         </button>
         <p className="daybar-note saved-note">
           Đã thu {money(collected)} / {money(expected)} · {paid.length}/{rows.length} phiếu đã đóng. Phát hành lại sẽ tính lại ngày ăn nhưng giữ nguyên phiếu đã đóng.
@@ -6358,7 +6856,7 @@ function FeeManager({ ping }: { ping: (s: string) => void }) {
               ×
             </button>
             <h2>
-              {qrInv.childName} · Tháng {qrInv.month}
+              {qrInv.childName} · Tháng {formatMonth(qrInv.month)}
             </h2>
             <p>
               Gửi mã này cho phụ huynh (chụp màn hình hoặc gửi qua Zalo). Quét
@@ -6421,7 +6919,7 @@ function ParentFees({ ping }: { ping: (s: string) => void }) {
             <header>
               <div>
                 <small>
-                  Tháng {x.month} · {x.childName} · {x.className}
+                  Tháng {formatMonth(x.month)} · {x.childName} · {x.className}
                 </small>
                 <h2>{money(x.total)}</h2>
               </div>
@@ -6481,7 +6979,217 @@ type ReportTotals = {
   posts: number;
   announcements: number;
   announcementReads: number;
+  workingDays: number;
+  expectedChildDays: number;
+  attendanceCompletion: number | null;
+  careLogs: number;
+  careCompletion: number | null;
+  healthRecords: number;
+  assessments: number;
 };
+
+type BoardingTotals = {
+  children: number;
+  present: number;
+  absent: number;
+  careLogs: number;
+  mealEntries: number;
+  sleepRecorded: number;
+  averageSleepMinutes: number | null;
+  healthAttention: number;
+  incidents: number;
+  menuDays: number;
+};
+type BoardingClassReport = {
+  classId: number;
+  name: string;
+  ageGroup: string;
+  childCount: number;
+  present: number;
+  absent: number;
+  careLogs: number;
+  mealEntries: number;
+  sleepRecorded: number;
+  averageSleepMinutes: number | null;
+  healthAttention: number;
+  incidents: number;
+};
+
+function BoardingArea({ ping }: { ping: (s: string) => void }) {
+  const [tab, setTab] = useState("overview");
+  const tabs = [
+    ["overview", "📊 Tổng hợp"],
+    ["daily", "🍚 Ăn · ngủ hằng ngày"],
+    ["incident", "💗 Sự cố · y tế"],
+    ["menu", "🍲 Thực đơn"],
+  ];
+  return (
+    <>
+      <PageHead
+        icon="🍱"
+        title="Quản lý bán trú"
+        sub="Không gian làm việc dành cho Ban giám hiệu và Hiệu phó phụ trách bán trú"
+      />
+      <div className="care-tabs boarding-tabs">
+        {tabs.map(([key, label]) => (
+          <button
+            key={key}
+            className={tab === key ? "on" : ""}
+            onClick={() => setTab(key)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {tab === "overview" && <BoardingDashboard />}
+      {tab === "daily" && <Care ping={ping} />}
+      {tab === "incident" && <Incidents ping={ping} />}
+      {tab === "menu" && <MenuBoard ping={ping} editable />}
+    </>
+  );
+}
+
+function BoardingDashboard() {
+  const [month, setMonth] = useState(vnToday().slice(0, 7));
+  const [totals, setTotals] = useState<BoardingTotals | null>(null);
+  const [perClass, setPerClass] = useState<BoardingClassReport[]>([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let live = true;
+    setLoading(true);
+    fetch(`/api/boarding-reports?month=${month}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!live) return;
+        setTotals(d?.totals || null);
+        setPerClass(d?.perClass || []);
+        setLoading(false);
+      })
+      .catch(() => live && setLoading(false));
+    return () => {
+      live = false;
+    };
+  }, [month]);
+
+  const exportExcel = () => {
+    if (!totals) return;
+    const summary = XLSX.utils.json_to_sheet([
+      {
+        "Tháng": formatMonth(month),
+        "Trẻ đang học": totals.children,
+        "Lượt có mặt": totals.present,
+        "Lượt vắng": totals.absent,
+        "Lượt ghi chăm sóc": totals.careLogs,
+        "Mục bữa ăn đã ghi": totals.mealEntries,
+        "Lượt ghi giấc ngủ": totals.sleepRecorded,
+        "Ngủ trung bình (phút)": totals.averageSleepMinutes ?? "",
+        "Lượt cần theo dõi sức khỏe": totals.healthAttention,
+        "Sự cố": totals.incidents,
+        "Ngày có thực đơn": totals.menuDays,
+      },
+    ]);
+    const details = XLSX.utils.json_to_sheet(
+      perClass.map((x) => ({
+        "Lớp": x.name,
+        "Độ tuổi": x.ageGroup,
+        "Sĩ số": x.childCount,
+        "Lượt có mặt": x.present,
+        "Lượt vắng": x.absent,
+        "Lượt ghi chăm sóc": x.careLogs,
+        "Mục bữa ăn đã ghi": x.mealEntries,
+        "Lượt ghi giấc ngủ": x.sleepRecorded,
+        "Ngủ trung bình (phút)": x.averageSleepMinutes ?? "",
+        "Cần theo dõi sức khỏe": x.healthAttention,
+        "Sự cố": x.incidents,
+      })),
+    );
+    const book = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(book, summary, "Tổng hợp");
+    XLSX.utils.book_append_sheet(book, details, "Theo lớp");
+    XLSX.writeFile(book, `bao-cao-ban-tru-${month}.xlsx`);
+  };
+
+  return (
+    <>
+      <div className="boarding-summary">
+        <div>
+          <small>BÁO CÁO ĐIỀU HÀNH BÁN TRÚ</small>
+          <h2>{formatMonth(month)}</h2>
+          <p>Theo dõi chuyên cần, bữa ăn, giấc ngủ và sức khỏe toàn trường.</p>
+        </div>
+        <div className="daybar">
+          <label>
+            Chọn tháng
+            <input
+              type="month"
+              value={month}
+              max={vnToday().slice(0, 7)}
+              onChange={(e) => e.target.value && setMonth(e.target.value)}
+            />
+          </label>
+          <button className="ghost" onClick={exportExcel} disabled={!totals}>
+            ⇩ Xuất báo cáo Excel
+          </button>
+        </div>
+      </div>
+      {loading && <div className="empty">Đang tổng hợp dữ liệu bán trú…</div>}
+      {totals && (
+        <>
+          <section className="stats boarding-stats">
+            <article>
+              <i className="green"><ChibiIcon icon="🙋" /></i>
+              <div><small>LƯỢT CÓ MẶT</small><b>{totals.present}</b><p>{totals.absent} lượt vắng</p></div>
+            </article>
+            <article>
+              <i className="yellow"><ChibiIcon icon="🍱" /></i>
+              <div><small>BỮA ĂN ĐÃ GHI</small><b>{totals.mealEntries}</b><p>{totals.careLogs} lượt chăm sóc</p></div>
+            </article>
+            <article>
+              <i className="blue"><ChibiIcon icon="😴" /></i>
+              <div><small>GIẤC NGỦ</small><b>{totals.sleepRecorded}</b><p>TB {totals.averageSleepMinutes ?? "—"} phút</p></div>
+            </article>
+            <article className={totals.healthAttention || totals.incidents ? "attention-card" : ""}>
+              <i className="pink"><ChibiIcon icon="💗" /></i>
+              <div><small>SỨC KHỎE CẦN LƯU Ý</small><b>{totals.healthAttention}</b><p>{totals.incidents} sự cố</p></div>
+            </article>
+          </section>
+          <div className="panel tablewrap">
+            <div className="care-head">
+              <div>
+                <b>Tình hình bán trú theo lớp</b>
+                <small>{perClass.length} lớp · {totals.children} trẻ đang học</small>
+              </div>
+              <span className="menu-ready">{totals.menuDays} ngày có thực đơn</span>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>LỚP</th><th>SĨ SỐ</th><th>CÓ MẶT</th><th>BỮA ĂN</th>
+                  <th>GIẤC NGỦ</th><th>NGỦ TB</th><th>SỨC KHỎE</th><th>SỰ CỐ</th>
+                </tr>
+              </thead>
+              <tbody>
+                {perClass.map((x) => (
+                  <tr key={x.classId}>
+                    <td><b>{x.name}</b><small>{x.ageGroup || "Chưa ghi độ tuổi"}</small></td>
+                    <td>{x.childCount}</td>
+                    <td>{x.present}<small>{x.absent} lượt vắng</small></td>
+                    <td>{x.mealEntries}</td>
+                    <td>{x.sleepRecorded}</td>
+                    <td>{x.averageSleepMinutes === null ? "—" : `${x.averageSleepMinutes} phút`}</td>
+                    <td><span className={x.healthAttention ? "rate-low" : "rate-ok"}>{x.healthAttention}</span></td>
+                    <td>{x.incidents}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+
 type ClassReport = {
   classId: number;
   name: string;
@@ -6494,6 +7202,12 @@ type ClassReport = {
   attendanceRate: number | null;
   incidents: number;
   posts: number;
+  careLogs: number;
+  healthRecords: number;
+  assessments: number;
+  expectedChildDays: number;
+  attendanceCompletion: number | null;
+  careCompletion: number | null;
 };
 
 type AuditRow = {
@@ -6508,7 +7222,7 @@ type AuditRow = {
 };
 
 /** Báo cáo tháng cho ban giám hiệu. */
-function ReportBoard() {
+function ReportBoard({ teacherView = false }: { teacherView?: boolean }) {
   const [month, setMonth] = useState(vnToday().slice(0, 7)),
     [totals, setTotals] = useState<ReportTotals | null>(null),
     [logs, setLogs] = useState<AuditRow[]>([]),
@@ -6516,10 +7230,11 @@ function ReportBoard() {
     [perClass, setPerClass] = useState<ClassReport[]>([]);
   useEffect(() => {
     let live = true;
-    fetch("/api/audit")
-      .then((r) => (r.ok ? r.json() : { logs: [] }))
-      .then((d) => live && setLogs(d.logs || []))
-      .catch(() => {});
+    if (!teacherView)
+      fetch("/api/audit")
+        .then((r) => (r.ok ? r.json() : { logs: [] }))
+        .then((d) => live && setLogs(d.logs || []))
+        .catch(() => {});
     fetch(`/api/reports?month=${month}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
@@ -6531,7 +7246,7 @@ function ReportBoard() {
     return () => {
       live = false;
     };
-  }, [month]);
+  }, [month, teacherView]);
   const rate = totals?.marked
     ? Math.round((totals.present / totals.marked) * 100)
     : null;
@@ -6539,8 +7254,8 @@ function ReportBoard() {
     <>
       <PageHead
         icon="📊"
-        title="Báo cáo tháng"
-        sub="Chuyên cần, sự cố và mức độ tương tác của từng lớp"
+        title={teacherView ? "Báo cáo lớp chủ nhiệm" : "Báo cáo tháng"}
+        sub={teacherView ? "Chuyên cần, sự cố và hoạt động của lớp theo từng tháng" : "Chuyên cần, sự cố và mức độ tương tác của từng lớp"}
       />
       <div className="daybar">
         <label>
@@ -6559,7 +7274,11 @@ function ReportBoard() {
                 "Vắng có phép": x.excused,
                 "Vắng không phép": x.unexcused,
                 "Chuyên cần (%)": x.attendanceRate ?? "",
+                "Hoàn thành điểm danh (%)": x.attendanceCompletion ?? "",
+                "Hoàn thành sổ chăm sóc (%)": x.careCompletion ?? "",
                 "Sự cố": x.incidents,
+                "Lượt cân đo": x.healthRecords,
+                "Phiếu đánh giá": x.assessments,
                 "Bài nhật ký": x.posts,
               })),
             );
@@ -6624,6 +7343,17 @@ function ReportBoard() {
           </article>
         </section>
       )}
+      {totals && (
+        <section className="form-report-overview panel">
+          <div className="form-report-title"><small>TỔNG HỢP BIỂU MẪU GVCN</small><b>Mức độ cập nhật tháng {formatMonth(month)}</b><span>Tính theo {totals.workingDays} ngày làm việc đã qua; cân đo và đánh giá được thống kê theo lượt phát sinh.</span></div>
+          <div className="form-report-metrics">
+            <article><span>Điểm danh</span><b>{totals.attendanceCompletion === null ? "—" : `${totals.attendanceCompletion}%`}</b><small>{totals.marked}/{totals.expectedChildDays} lượt</small></article>
+            <article><span>Sổ chăm sóc</span><b>{totals.careCompletion === null ? "—" : `${totals.careCompletion}%`}</b><small>{totals.careLogs}/{totals.expectedChildDays} lượt</small></article>
+            <article><span>Cân đo</span><b>{totals.healthRecords}</b><small>lượt cập nhật</small></article>
+            <article><span>Đánh giá</span><b>{totals.assessments}</b><small>phiếu cập nhật</small></article>
+          </div>
+        </section>
+      )}
       <div className="panel tablewrap">
         <table>
           <thead>
@@ -6631,9 +7361,13 @@ function ReportBoard() {
               <th>LỚP</th>
               <th>SĨ SỐ</th>
               <th>CHUYÊN CẦN</th>
+              <th>ĐIỂM DANH ĐỦ</th>
+              <th>CHĂM SÓC ĐỦ</th>
               <th>CÓ PHÉP</th>
               <th>KHÔNG PHÉP</th>
               <th>SỰ CỐ</th>
+              <th>CÂN ĐO</th>
+              <th>ĐÁNH GIÁ</th>
               <th>BÀI NHẬT KÝ</th>
             </tr>
           </thead>
@@ -6654,9 +7388,13 @@ function ReportBoard() {
                     </b>
                   )}
                 </td>
+                <td><b className={(x.attendanceCompletion ?? 0) >= 90 ? "rate-ok" : "rate-low"}>{x.attendanceCompletion === null ? "—" : `${x.attendanceCompletion}%`}</b></td>
+                <td><b className={(x.careCompletion ?? 0) >= 90 ? "rate-ok" : "rate-low"}>{x.careCompletion === null ? "—" : `${x.careCompletion}%`}</b></td>
                 <td>{x.excused}</td>
                 <td>{x.unexcused}</td>
                 <td>{x.incidents}</td>
+                <td>{x.healthRecords}</td>
+                <td>{x.assessments}</td>
                 <td>{x.posts}</td>
               </tr>
             ))}
@@ -6666,7 +7404,7 @@ function ReportBoard() {
           <div className="empty">Trường chưa có lớp nào trong mục Thiết lập.</div>
         )}
       </div>
-      <div className="panel">
+      {!teacherView && <div className="panel">
         <div className="care-head">
           <div>
             <b>Nhật ký thao tác</b>
@@ -6693,7 +7431,7 @@ function ReportBoard() {
               <tbody>
                 {logs.map((x) => (
                   <tr key={x.id}>
-                    <td>{x.createdAt}</td>
+                    <td>{formatDateTime(x.createdAt)}</td>
                     <td>
                       <b>{x.actorName}</b>
                       <small>
@@ -6719,7 +7457,7 @@ function ReportBoard() {
             )}
           </div>
         )}
-      </div>
+      </div>}
     </>
   );
 }
@@ -7122,7 +7860,7 @@ function PickupSection({
           <b className="form-heading">Đã báo gần đây</b>
           {notices.slice(0, 5).map((x) => (
             <small key={x.id}>
-              {x.date}
+              {formatDate(x.date)}
               {x.expectedTime ? ` ${x.expectedTime}` : ""} · {x.personName} đón{" "}
               {x.childName}
               {x.date >= today && (

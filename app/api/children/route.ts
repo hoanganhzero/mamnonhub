@@ -68,7 +68,7 @@ export async function POST(request: Request) {
       );
     const body = (await request.json()) as
       | Record<string, string>
-      | { items: Record<string, string>[]; classId?: string | number };
+      | { items: Record<string, string>[]; classId?: string | number; updateExisting?: boolean };
     const assigned = await resolveClass(
       user,
       (body as Record<string, unknown>).classId,
@@ -93,6 +93,12 @@ export async function POST(request: Request) {
           classId: assigned?.id ?? null,
           className: assigned?.name || p.className || "Chưa xếp lớp",
           birthDate: p.birthDate || "",
+          enrollmentNumber: p.enrollmentNumber || "",
+          spc: p.spc || "",
+          gender: p.gender || "",
+          addressHamlet: p.addressHamlet || "",
+          addressCommune: p.addressCommune || "",
+          addressProvince: p.addressProvince || "",
           guardian: p.guardian || "",
           phone: p.phone || "",
           allergy: p.allergy || "Không",
@@ -100,10 +106,12 @@ export async function POST(request: Request) {
           fatherName: p.fatherName || "",
           fatherBirthDate: p.fatherBirthDate || "",
           fatherJob: p.fatherJob || "",
+          fatherWorkplace: p.fatherWorkplace || "",
           fatherPhone: p.fatherPhone || "",
           motherName: p.motherName || "",
           motherBirthDate: p.motherBirthDate || "",
           motherJob: p.motherJob || "",
+          motherWorkplace: p.motherWorkplace || "",
           motherPhone: p.motherPhone || "",
           zaloPhone: p.zaloPhone || p.phone || "",
         }));
@@ -113,19 +121,30 @@ export async function POST(request: Request) {
           { status: 400 },
         );
       const inserted = [];
-      for (const part of rowChunks(valid, 19))
-        inserted.push(
-          ...(await getDb().insert(children).values(part).returning()),
-        );
+      let updated = 0;
+      const existing = body.updateExisting
+        ? await getDb().select().from(children).where(eq(children.schoolId, user.schoolId))
+        : [];
+      const byName = new Map(existing.map((x) => [x.name.trim().toLocaleLowerCase("vi"), x]));
+      const pending = [];
+      for (const value of valid) {
+        const found = byName.get(value.name.toLocaleLowerCase("vi"));
+        if (found) {
+          await getDb().update(children).set(value).where(eq(children.id, found.id));
+          updated += 1;
+        } else pending.push(value);
+      }
+      for (const part of rowChunks(pending, 25))
+        inserted.push(...(await getDb().insert(children).values(part).returning()));
       await logAction(
         user,
         "nhập Excel",
         "hồ sơ trẻ",
         null,
-        `${inserted.length} hồ sơ`,
+        `${inserted.length} thêm mới, ${updated} cập nhật`,
       );
       return Response.json(
-        { children: inserted, count: inserted.length },
+        { children: inserted, count: inserted.length + updated, inserted: inserted.length, updated },
         { status: 201 },
       );
     }
@@ -140,6 +159,12 @@ export async function POST(request: Request) {
         classId: assigned?.id ?? null,
         className: assigned?.name || p.className || "Chưa xếp lớp",
         birthDate: p.birthDate || "",
+        enrollmentNumber: p.enrollmentNumber || "",
+        spc: p.spc || "",
+        gender: p.gender || "",
+        addressHamlet: p.addressHamlet || "",
+        addressCommune: p.addressCommune || "",
+        addressProvince: p.addressProvince || "",
         guardian: p.guardian || "",
         phone: p.phone || "",
         allergy: p.allergy || "Không",
@@ -147,10 +172,12 @@ export async function POST(request: Request) {
         fatherName: p.fatherName || "",
         fatherBirthDate: p.fatherBirthDate || "",
         fatherJob: p.fatherJob || "",
+        fatherWorkplace: p.fatherWorkplace || "",
         fatherPhone: p.fatherPhone || "",
         motherName: p.motherName || "",
         motherBirthDate: p.motherBirthDate || "",
         motherJob: p.motherJob || "",
+        motherWorkplace: p.motherWorkplace || "",
         motherPhone: p.motherPhone || "",
         zaloPhone: p.zaloPhone || p.phone || "",
       })
@@ -190,6 +217,12 @@ export async function PATCH(request: Request) {
       "name",
       "className",
       "birthDate",
+      "enrollmentNumber",
+      "spc",
+      "gender",
+      "addressHamlet",
+      "addressCommune",
+      "addressProvince",
       "guardian",
       "phone",
       "allergy",
@@ -197,10 +230,12 @@ export async function PATCH(request: Request) {
       "fatherName",
       "fatherBirthDate",
       "fatherJob",
+      "fatherWorkplace",
       "fatherPhone",
       "motherName",
       "motherBirthDate",
       "motherJob",
+      "motherWorkplace",
       "motherPhone",
       "zaloPhone",
     ]) {
