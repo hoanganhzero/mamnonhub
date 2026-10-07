@@ -1,4 +1,4 @@
-const CACHE = "mam-non-yeu-thuong-v44";
+const CACHE = "mam-non-yeu-thuong-v45";
 const STATIC = [
   "/offline.html",
   "/manifest.webmanifest",
