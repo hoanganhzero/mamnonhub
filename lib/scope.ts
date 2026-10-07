@@ -1,5 +1,5 @@
 import type { SQL } from "drizzle-orm";
-import { and, asc, eq, inArray, isNull, notInArray, or } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, notInArray, or, sql } from "drizzle-orm";
 import type { AnySQLiteColumn } from "drizzle-orm/sqlite-core";
 import { getDb } from "../db";
 import { childGuardians, children, classes, users } from "../db/schema";
@@ -8,20 +8,18 @@ export type Actor = typeof users.$inferSelect;
 export type Child = typeof children.$inferSelect;
 export type ClassOption = { id: number; name: string; ageGroup: string };
 
-/** Lớp mà giáo viên đang được phân công chủ nhiệm. */
+/** Lớp mà giáo viên đang được phân công chủ nhiệm, hỗ trợ nhiều GVCN/lớp. */
 export async function teacherClasses(user: Actor): Promise<ClassOption[]> {
   if (!user.schoolId) return [];
-  return getDb()
-    .select({ id: classes.id, name: classes.name, ageGroup: classes.ageGroup })
-    .from(classes)
-    .where(
-      and(
-        eq(classes.schoolId, user.schoolId),
-        eq(classes.teacherId, user.id),
-        eq(classes.status, "active"),
-      ),
-    )
-    .orderBy(asc(classes.name));
+  return getDb().all<ClassOption>(sql`
+    SELECT c.id AS id, c.name AS name, c.age_group AS ageGroup
+    FROM classes c
+    INNER JOIN class_teachers ct ON ct.class_id = c.id
+    WHERE c.school_id = ${user.schoolId}
+      AND ct.teacher_id = ${user.id}
+      AND c.status = 'active'
+    ORDER BY c.name
+  `);
 }
 
 export type ChildScope = {
@@ -46,7 +44,7 @@ function listChildren(where?: SQL) {
 /**
  * Danh sách trẻ mà người dùng được phép xem và thao tác.
  *
- * Giáo viên chỉ thấy trẻ thuộc lớp mình chủ nhiệm, cộng thêm trẻ chưa xếp lớp
+ * Giáo viên chỉ thấy trẻ thuộc các lớp mình chủ nhiệm, cộng thêm trẻ chưa xếp lớp
  * của cùng trường để còn xếp lớp cho các hồ sơ nhập từ Excel. Giáo viên chưa
  * được phân lớp nào thì tạm thấy toàn trường và nhận cờ scope "school" để giao
  * diện nhắc nhà trường phân lớp.
@@ -58,7 +56,6 @@ export async function scopedChildren(
   classId: number | null = null,
 ): Promise<ChildScope> {
   if (user.role === "parent") {
-    // Bố, mẹ, ông bà — mỗi người một tài khoản, cùng xem một hồ sơ.
     const links = await getDb()
       .select({ childId: childGuardians.childId })
       .from(childGuardians)
@@ -148,11 +145,6 @@ export function classParam(request: Request) {
   return Number.isInteger(value) && value >= 0 ? value : null;
 }
 
-/**
- * Điều kiện lọc bản ghi theo phạm vi trẻ của người dùng cho một bảng bất kỳ
- * có cột school_id và child_id. Phạm vi cả trường lọc bằng school_id để tránh
- * mệnh đề IN với hàng trăm mã trẻ — vượt giới hạn tham số của D1.
- */
 export function reach(
   scope: ChildScope,
   user: Actor,
